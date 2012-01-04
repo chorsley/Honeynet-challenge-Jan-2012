@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="stylesheet" type="text/css" href="rend.css" />
     <script type="text/javascript" src="http://mbostock.github.com/d3/d3.js"></script>
     <script type="text/javascript" src="http://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.7.1.min.js"></script>
     <script type="text/javascript" src="rend.js"></script>
@@ -9,21 +10,16 @@
     <div id="viz"></div>
     <script type="text/javascript">
 
-    var hosts = [];
-
-    var winpad = 10;
-
-    var canw = $(window).width() - (winpad * 2);
-    var canh = $(window).height() - (winpad * 2);
-
-    var rend = rend({"canw": canw, "canh": canh, "winpad": winpad});
+    var rend = rend({});
     rend.init();
+    var hosts = [1,2,3,4];
 
-    setTimeout("add_host()", 1000);
-    setTimeout("add_host()", 3000);
-    setTimeout("add_host()", 5000);
+    setTimeout("rend.add_host()", 1000);
+    setTimeout("rend.add_host()", 3000);
+    setTimeout("rend.add_host()", 5000);
+    setTimeout("rend.add_host()", 6000);
+    setTimeout("rend.add_host()", 6000);
 
-
-    </script>
+</script>
 </body>
 </html>
