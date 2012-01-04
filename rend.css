@@ -1,4 +1,16 @@
 body {
-    background-color: #041BB5;
+    #background-color: #041BB5;
+    background-color: darkgrey;
     color: #041BB5;
+}
+
+.dst-box-label {
+    color: white;
+    font-family: Helvetica, Arial;
+}
+
+.src-line-label {
+    font-size: 0.9em;
+    color: blue;
+    font-family: Helvetica, Arial;
 }
