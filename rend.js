@@ -10,6 +10,7 @@ var rend = function(spec){
     that.canw = spec.canw || $(window).width() - (that.winpad * 2);
     that.canh = spec.canh || $(window).height() - (that.winpad * 2);
     that.dst_box_height = 30;
+    that.port_rad = 15;
 
     that.s = null;
 
@@ -78,7 +79,8 @@ var rend = function(spec){
             .attr("transform", function (d,i){ return "translate("+ (that.winpad + host_width * i) +", "+that.winpad+")"});
         
         var boxes = dstsg.selectAll(".dst-box")
-            .data(nest).enter()
+            .data(function(d, i){ return(d.values)})
+            .enter()
             .append("svg:rect")
             .attr("x", function(d, i) { return 0 })
             .attr("y", -that.dst_box_height)
@@ -103,31 +105,38 @@ var rend = function(spec){
             .style("color", "white")
             .attr("class", "dst-box-label")
             .attr("text-anchor", "middle")
-            .text(function(d,i) { console.log("label", d); return d.dst });
+            .text(function(d,i) { return d.dst });
         
-        var circles = dstsg.selectAll(".dportbox")
-            .data(function(d, i){ return sets[i]["ports"]})
-            .enter().append("svg:circle")
-            .attr("cy", that.winpad + that.dst_box_height)
-            .attr("cx", function (d, i){ console.log("xpos", d, i); return (i * 100)  })
-            .text(function(d, i) { d })
-            .attr("color", "white")
-            .attr("r", 10);
+
     }
 
     that.paint_ports = function(dst, ports){
-        var data = feeder.get_dst_host_ports();
-        for (d in data){ 
-            console.log("#dst"+d);
-            /*box = that.get_can().select(function(){return "#dst"+d});
-            console.log(box);
-            console.log(box.attr("x"));
-            box.append("svg:circle")
-                .attr("cy", that.winpad + that.dst_box_height)
-                .attr("cx", 1)
-                .attr("r", 1);*/
-        }
-
+        var circles = d3.selectAll(".dst-group")
+            .selectAll(".dportbox")
+            //.data(function(d, i){ return sets[i]["ports"]})
+            //.data(function(d, i){ console.log("1", d.values.map(function(e){ return e.ports }));return d.values.map(function(e){ return [e.ports] })})
+            .data(function(d, i){ return  d.values[0].ports})
+            .enter().append("svg:circle")
+            .attr("cy", that.dst_box_height + that.port_rad + that.winpad )
+            .attr("cx", function (d, i){ console.log("xpos", d, i); return (that.port_rad * 2 * i + that.port_rad)  })
+            .attr("fill", "none")
+            .attr("stroke", "grey")
+            .text(function(d, i) { d })
+            .attr("color", "white")
+            .attr("r", that.port_rad);
+        d3.selectAll(".dst-group").selectAll(".dportlabel")
+            .data(function(d, i){ return  d.values[0].ports})
+            .enter()
+            .append("text")
+            .attr("y", that.dst_box_height + that.port_rad + that.winpad )
+            .attr("x", function (d, i){ console.log("xpos", d, i); return (that.port_rad * 2 * i + that.port_rad)  })
+            .attr("dy", "0.3em")
+            .attr("dx", "0em")
+            .style("color", "white")
+            .attr("class", "dst-box-label")
+            .attr("text-anchor", "middle")
+            .text(function(d,i) { return d });
+ 
     }
 
     that.redraw = function(){
