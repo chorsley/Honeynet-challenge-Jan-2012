@@ -63,15 +63,26 @@ var rend = function(spec){
 
     that.paint_dsts = function(){
         var host_width = that.get_host_box_width();
+        var sets = that.feeder.get_dst_host_ports();
 
-        var boxes = that.get_can().selectAll(".dstbox")
-            .data(that.feeder.get_dsts());
+        var nest = d3.nest()
+            .key(function(d) { return d.dst })
+            .entries(sets);
+
+        console.log("nest", nest);
+
+        var dstsg = that.get_can().selectAll(".dst-group")
+            .data(nest).enter()
+            .append("svg:g")
+            .attr("class", "dst-group")
+            .attr("transform", function (d,i){ return "translate("+ (that.winpad + host_width * i) +", "+that.winpad+")"});
         
-        boxes.enter()
+        var boxes = dstsg.selectAll(".dst-box")
+            .data(nest).enter()
             .append("svg:rect")
-            .attr("x", function(d, i) { return that.winpad + host_width * i })
+            .attr("x", function(d, i) { return 0 })
             .attr("y", -that.dst_box_height)
-            .attr("class", "dstbox")
+            .attr("class", "dst-box")
             .attr("id", function(d) { return "dst" + d } )
             .style("stroke", "grey")
             .attr("width", host_width)
@@ -80,25 +91,32 @@ var rend = function(spec){
                 .attr("fill", "none")
                 .attr("y", that.winpad)
                 .duration(2000);
-        boxes.enter()
+
+        dstsg.selectAll(".dst-box-label")
+            .data(function(d, i){ return(d.values)})
+            .enter()
             .append("text")
-            .attr("x", function(d, i) { return (that.winpad + host_width * i) + host_width / 2 })
-            .attr("y", 10)
+            .attr("x", host_width / 2)
+            .attr("y", that.dst_box_height / 2)
             .attr("dy", "1.3em")
             .attr("dx", "1em")
             .style("color", "white")
             .attr("class", "dst-box-label")
             .attr("text-anchor", "middle")
-            .text(function(d) { return d });
-        boxes.append("svg:circle")
-            .data(that.feeder.get_dst_host_ports())
+            .text(function(d,i) { console.log("label", d); return d.dst });
+        
+        var circles = dstsg.selectAll(".dportbox")
+            .data(function(d, i){ return sets[i]["ports"]})
+            .enter().append("svg:circle")
             .attr("cy", that.winpad + that.dst_box_height)
-            .attr("cx", 1)
+            .attr("cx", function (d, i){ console.log("xpos", d, i); return (i * 100)  })
+            .text(function(d, i) { d })
+            .attr("color", "white")
             .attr("r", 10);
     }
 
     that.paint_ports = function(dst, ports){
-        data = feeder.get_dst_host_ports();
+        var data = feeder.get_dst_host_ports();
         for (d in data){ 
             console.log("#dst"+d);
             /*box = that.get_can().select(function(){return "#dst"+d});
@@ -154,19 +172,36 @@ var feeder = function(spec){
     }
 
     that.map_dst_host_ports = function(){
-        sets = {};
+        // could do it as an object of objects, but d3 wants an array of 
+        // objects
+        var sets = [];
 
-        for (d = 0; d <= data.length; d++){
+        for (var d = 0; d <= data.length; d++){
            if (data.hasOwnProperty(d)){
-               dport = data[d].dport;
-               if (!sets.hasOwnProperty(data[d].dst)){
-                   sets[data[d].dst] = {};
+               var dport = data[d].dport;
+               var dst = data[d].dst;
+               var dst_pos = -1;
+               var dst_port_pos = -1;
+               
+               for (var i = 0; i < sets.length; i++){
+                    if (sets[i].dst == dst){
+                        dst_pos = i;
+                        break;
+                    }
                }
-               if (!sets[data[d].dst].hasOwnProperty(dport)){
-                   sets[data[d].dst][dport] = 1;
+               if (dst_pos == -1){
+                   sets.push({"dst": dst, "ports": []});
+                   dst_pos = sets.length - 1;
                }
-               else{
-                   sets[data[d].dst][dport]++;
+               
+               for (var i = 0; i < sets[dst_pos]["ports"].length; i++){
+                    if (sets[dst_pos].ports[i] == dport){
+                        dst_port_pos = i;
+                        break;
+                    }
+               }
+               if (dst_port_pos == -1){
+                   sets[dst_pos]["ports"].push(dport);    
                }
             }
         }
