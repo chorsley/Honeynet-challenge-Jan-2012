@@ -9,7 +9,8 @@ var rend = function(spec){
     that.winpad = spec.winpad || 10;
     that.canw = spec.canw || $(window).width() - (that.winpad * 2);
     that.canh = spec.canh || $(window).height() - (that.winpad * 2);
-    
+    that.dst_box_height = 30;
+
     that.s = null;
 
     var src_y_scale = d3.scale.linear()
@@ -32,6 +33,10 @@ var rend = function(spec){
         return src_y_scale(n + 1 / that.feeder.get_srcs().length); 
     }
 
+    that.get_host_box_width = function(n){
+        return (that.canw - that.winpad * 2) / (that.feeder.get_dsts().length);
+    }
+    
     that.paint_srcs = function(){
         var srcs = that.get_can().selectAll(".srclines")
            .data(that.feeder.get_srcs());
@@ -57,7 +62,7 @@ var rend = function(spec){
     }
 
     that.paint_dsts = function(){
-        var host_width = (that.canw - that.winpad * 2) / (that.feeder.get_dsts().length);
+        var host_width = that.get_host_box_width();
 
         var boxes = that.get_can().selectAll(".dstbox")
             .data(that.feeder.get_dsts());
@@ -65,29 +70,51 @@ var rend = function(spec){
         boxes.enter()
             .append("svg:rect")
             .attr("x", function(d, i) { return that.winpad + host_width * i })
-            .attr("y", 10)
+            .attr("y", -that.dst_box_height)
             .attr("class", "dstbox")
+            .attr("id", function(d) { return "dst" + d } )
             .style("stroke", "grey")
-            .attr("width", 0)
-            .attr("height", 50)
+            .attr("width", host_width)
+            .attr("height", that.dst_box_height)
             .transition()
                 .attr("fill", "none")
-                .attr("width", host_width)
+                .attr("y", that.winpad)
                 .duration(2000);
         boxes.enter()
             .append("text")
             .attr("x", function(d, i) { return (that.winpad + host_width * i) + host_width / 2 })
             .attr("y", 10)
-            .attr("dy", "2em")
+            .attr("dy", "1.3em")
             .attr("dx", "1em")
             .style("color", "white")
             .attr("class", "dst-box-label")
             .attr("text-anchor", "middle")
             .text(function(d) { return d });
+        boxes.append("svg:circle")
+            .data(that.feeder.get_dst_host_ports())
+            .attr("cy", that.winpad + that.dst_box_height)
+            .attr("cx", 1)
+            .attr("r", 10);
+    }
+
+    that.paint_ports = function(dst, ports){
+        data = feeder.get_dst_host_ports();
+        for (d in data){ 
+            console.log("#dst"+d);
+            /*box = that.get_can().select(function(){return "#dst"+d});
+            console.log(box);
+            console.log(box.attr("x"));
+            box.append("svg:circle")
+                .attr("cy", that.winpad + that.dst_box_height)
+                .attr("cx", 1)
+                .attr("r", 1);*/
+        }
+
     }
 
     that.redraw = function(){
         that.paint_dsts(); 
+        that.paint_ports();
         that.paint_srcs(); 
     }
 
@@ -104,14 +131,14 @@ var feeder = function(spec){
 
     that.dsts = [];
     that.srcs = [];
+    that.dst_ports = [];
     that.conns = [];
     
     that.init = function(){
-       that.dsts = data.map(function(e,i,o){return e.dst}).unique(); 
-       that.srcs = data.map(function(e,i,o){return e.src}).unique(); 
-        for (d in data){
-
-        }
+        // TODO: put all collection routines in single loop
+        that.dsts = data.map(function(e,i,o){return e.dst}).unique(); 
+        that.srcs = data.map(function(e,i,o){return e.src}).unique(); 
+        that.dst_ports = that.map_dst_host_ports();
     }
 
     that.get_dsts = function(){
@@ -120,6 +147,30 @@ var feeder = function(spec){
 
     that.get_srcs = function(){
         return that.srcs;
+    }
+
+    that.get_dst_host_ports = function(){
+        return that.dst_ports;
+    }
+
+    that.map_dst_host_ports = function(){
+        sets = {};
+
+        for (d = 0; d <= data.length; d++){
+           if (data.hasOwnProperty(d)){
+               dport = data[d].dport;
+               if (!sets.hasOwnProperty(data[d].dst)){
+                   sets[data[d].dst] = {};
+               }
+               if (!sets[data[d].dst].hasOwnProperty(dport)){
+                   sets[data[d].dst][dport] = 1;
+               }
+               else{
+                   sets[data[d].dst][dport]++;
+               }
+            }
+        }
+        return sets;
     }
 
     return that;
@@ -131,30 +182,4 @@ Array.prototype.unique = function() {
     for(i in o) r.push(o[i]);
     return r;
 };
-
-// working update code using data
-
-/*function redraw(){
-        rend.get_canvas()
-        .selectAll("rect")
-        .data(hosts)
-        .enter()
-        .append("svg:rect")
-        .attr("x", function(d, i) { return d * 20 })
-        //.attr("x", 10)
-        .attr("y", 10)
-        .style("stroke", "grey")
-        .attr("width", 50)
-        .attr("height", 50)
-
-        rend.get_canvas()
-        .selectAll("rect")
-        .data(hosts).exit().remove();
-    }
-
-    redraw();
-
-    setTimeout("hosts.push(10); redraw()", 1000);
-    setTimeout("hosts.pop(); redraw()", 2000);
-*/
 
