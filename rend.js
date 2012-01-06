@@ -17,12 +17,19 @@ var rend = function(spec){
     var src_y_scale = d3.scale.linear()
                       .domain([0, that.feeder.get_srcs().length])
                       .range([200, that.canh]);
-    
+
+    var time_scale = d3.scale.linear()
+                     .domain([that.feeder.get_min_time(), that.feeder.get_max_time()])
+                     .range([that.winpad, that.canw - that.winpad]);
+
     that.init = function(){
         that.s = d3.select("#viz")
         .append("svg:svg")
         .attr("width", that.canw)
         .attr("height", that.canh);
+        that.paint_dsts(); 
+        that.paint_ports();
+        that.paint_srcs(); 
         that.redraw();
     }
 
@@ -37,7 +44,36 @@ var rend = function(spec){
     that.get_host_box_width = function(n){
         return (that.canw - that.winpad * 2) / (that.feeder.get_dsts().length);
     }
-    
+   
+    that.paint_sweep = function(){
+        var currtime = that.feeder.get_time();
+        console.log(time_scale(currtime), currtime);
+        var x = 0;
+
+        var sweep = that.get_can().selectAll(".sweep");
+        console.log(sweep);
+        if (sweep[0].length > 0){
+            console.log("x1",sweep.x1);
+            x = sweep.attr("x1");
+        }
+
+        sweep
+           .data([time_scale(currtime)])
+           .enter()
+           .append("svg:line")
+           .attr("class", "sweep") 
+           .style("stroke", "grey")
+           .attr("y1", 0)
+           .attr("y2", that.canh)
+           .attr("x1", function(d){ return d })
+           .attr("x2", function(d){ return d })
+           //.transition()
+               //.duration(that.feeder.get_refresh_time())
+           //    .duration(1000)
+           //    .attr("x1", function(d, i){ return d })
+           //    .attr("x2", time_scale(currtime));
+    }
+
     that.paint_srcs = function(){
         var srcs = that.get_can().selectAll(".srclines")
            .data(that.feeder.get_srcs());
@@ -113,8 +149,6 @@ var rend = function(spec){
     that.paint_ports = function(dst, ports){
         var circles = d3.selectAll(".dst-group")
             .selectAll(".dportbox")
-            //.data(function(d, i){ return sets[i]["ports"]})
-            //.data(function(d, i){ console.log("1", d.values.map(function(e){ return e.ports }));return d.values.map(function(e){ return [e.ports] })})
             .data(function(d, i){ return  d.values[0].ports})
             .enter().append("svg:circle")
             .attr("cy", that.dst_box_height + that.port_rad + that.winpad )
@@ -140,9 +174,11 @@ var rend = function(spec){
     }
 
     that.redraw = function(){
-        that.paint_dsts(); 
-        that.paint_ports();
-        that.paint_srcs(); 
+        that.paint_sweep();
+        console.log(that.feeder.get_refresh_time());
+        if (that.feeder.is_running()){
+            setTimeout(function(){that.redraw()}, that.feeder.get_refresh_time());
+        }
     }
 
     return that;
@@ -153,19 +189,26 @@ var feeder = function(spec){
     var that = {};
 
     var data = spec.data;
-    var speed = 1;
-    var time = spec.time || 0;
+    
+    that.runtime = 5000;
+    that.slottime = 100;
 
     that.dsts = [];
     that.srcs = [];
     that.dst_ports = [];
     that.conns = [];
+    that.time_start;
+    that.time_end;
+    that.time = spec.time || 0;
+    that.running = true;
     
     that.init = function(){
         // TODO: put all collection routines in single loop
         that.dsts = data.map(function(e,i,o){return e.dst}).unique(); 
         that.srcs = data.map(function(e,i,o){return e.src}).unique(); 
         that.dst_ports = that.map_dst_host_ports();
+        that.init_timer();
+        that.tick();
     }
 
     that.get_dsts = function(){
@@ -176,8 +219,55 @@ var feeder = function(spec){
         return that.srcs;
     }
 
+    that.is_running = function(){
+        return that.running;
+    }
+
     that.get_dst_host_ports = function(){
         return that.dst_ports;
+    }
+
+    that.get_time = function(){
+        return that.time;
+    }
+
+    that.get_refresh_time = function(){
+        return that.slottime;
+    }
+
+    that.get_min_time = function(){
+        return that.time_start;
+    }
+
+    that.get_max_time = function(){
+        return that.time_end;
+    }
+
+    that.tick = function(){
+        if (that.time < that.time_end){
+            that.time = that.time + ((that.time_end - that.time_start) / (that.runtime / that.slottime));
+            setTimeout(function(){that.tick()}, that.slottime); 
+        }
+        else{
+            that.running = false;
+        }
+    }
+
+    that.init_timer = function(){
+        var max = data[0].time;
+        var min = data[0].time;
+
+        for (var d = 0; d < data.length; d++){
+            if (data[d].time < min){
+                min = data[d].time;
+            }
+            if (data[d].time > max){
+                max = data[d].time;
+            }
+        }
+        that.time = min;
+        that.time_start = min;
+        that.time_end = max;
     }
 
     that.map_dst_host_ports = function(){
@@ -185,7 +275,7 @@ var feeder = function(spec){
         // objects
         var sets = [];
 
-        for (var d = 0; d <= data.length; d++){
+        for (var d = 0; d < data.length; d++){
            if (data.hasOwnProperty(d)){
                var dport = data[d].dport;
                var dst = data[d].dst;
