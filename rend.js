@@ -30,6 +30,7 @@ var rend = function(spec){
         that.paint_dsts(); 
         that.paint_ports();
         that.paint_srcs(); 
+        that.paint_sweep();
         that.redraw();
     }
 
@@ -46,32 +47,38 @@ var rend = function(spec){
     }
    
     that.paint_sweep = function(){
-        var currtime = that.feeder.get_time();
+        /*var currtime = that.feeder.get_time();
         console.log(time_scale(currtime), currtime);
         var x = 0;
-
+        */
+        var currtime = that.feeder.get_time();
         var sweep = that.get_can().selectAll(".sweep");
-        console.log(sweep);
-        if (sweep[0].length > 0){
+        /*console.log(sweep, sweep.empty());
+        if (!sweep.empty()){
             console.log("x1",sweep.x1);
             x = sweep.attr("x1");
-        }
 
-        sweep
-           .data([time_scale(currtime)])
-           .enter()
-           .append("svg:line")
-           .attr("class", "sweep") 
-           .style("stroke", "grey")
-           .attr("y1", 0)
-           .attr("y2", that.canh)
-           .attr("x1", function(d){ return d })
-           .attr("x2", function(d){ return d })
-           //.transition()
-               //.duration(that.feeder.get_refresh_time())
-           //    .duration(1000)
-           //    .attr("x1", function(d, i){ return d })
-           //    .attr("x2", time_scale(currtime));
+            sweep.transition()
+                .attr("x1", time_scale(currtime))
+                .attr("x2", time_scale(currtime))
+                .duration(that.feeder.get_refresh_time());
+        }
+        else{*/
+            sweep
+               .data([time_scale(currtime)])
+               .enter()
+               .append("svg:line")
+               .attr("class", "sweep") 
+               .style("stroke", "lime")
+               .attr("y1", 0)
+               .attr("y2", that.canh)
+               .attr("x1", function(d){ console.log("D", d);return d })
+               .attr("x2", function(d){ console.log(d);return d })
+               .transition()
+                   .duration(10000)
+                   .attr("x1", time_scale(that.feeder.get_max_time()))
+                   .attr("x2", time_scale(that.feeder.get_max_time()));
+        /*}*/
     }
 
     that.paint_srcs = function(){
@@ -174,7 +181,7 @@ var rend = function(spec){
     }
 
     that.redraw = function(){
-        that.paint_sweep();
+        //that.paint_sweep();
         console.log(that.feeder.get_refresh_time());
         if (that.feeder.is_running()){
             setTimeout(function(){that.redraw()}, that.feeder.get_refresh_time());
