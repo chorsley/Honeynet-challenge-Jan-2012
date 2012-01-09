@@ -11,6 +11,7 @@ var rend = function(spec){
     that.canh = spec.canh || $(window).height() - (that.winpad * 2);
     that.dst_box_height = 30;
     that.port_rad = 15;
+    that.cached_coords = {};
 
     that.s = null;
 
@@ -72,22 +73,81 @@ var rend = function(spec){
                .style("stroke", "lime")
                .attr("y1", 0)
                .attr("y2", that.canh)
-               .attr("x1", function(d){ console.log("D", d);return d })
+               .attr("x1", function(d){ return d })
                .attr("x2", function(d){ console.log(d);return d })
                .transition()
-                   .duration(10000)
+                   .ease("linear")
+                   .duration(that.feeder.get_runtime())
                    .attr("x1", time_scale(that.feeder.get_max_time()))
                    .attr("x2", time_scale(that.feeder.get_max_time()));
         /*}*/
     }
 
+    that.paint_conns = function(){
+        var conns = that.feeder.get_conns();
+
+        var conn_lines = that.get_can().selectAll(".connline")
+            .data(conns);
+
+        conn_lines.enter()
+            .append("svg:line")
+            .style("stroke", "blue")
+            .attr("class", "connline")
+            .attr("y1", function(d, i) { 
+                return (that.get_line_attr(that.css_safen("#src"+d.src)).y);
+            })
+            .attr("y2", function(d, i) { 
+                return (that.get_line_attr(that.css_safen("#src"+d.src)).y);
+            })
+            .attr("x1", function(d) {return time_scale(d.time) })
+            .attr("x2", function(d) {return time_scale(d.time) })
+            .transition()
+                .duration(2000)
+                .attr("x2", function (d) { 
+                    that.get_circle_attr(d.dst, d.dport).cx 
+                })
+                .attr("y2", function(d,i){ 
+                    that.get_circle_attr(d.dst, d.dport).cy
+                });
+    }
+
+    that.get_circle_attr = function(dst, dport){
+        console.log(dst, dport);
+        var parref = d3.selectAll(that.css_safen("#dst-group"+dst));
+        var parbbox = parref.node().getBBox();
+        console.log("Dst group bbox", parref, parref.transform, parbbox, parbbox.x, parbbox.y);
+        var elemref = d3.selectAll(that.css_safen("#port"+dst+"_"+dport));
+        //console.log(parbbox.x);
+        console.log("Circle", elemref, elemref.attr("cy"), elemref.attr("cx"));
+        console.log("Circle trans", elemref.transX);
+
+        return({cy:elemref.attr("cy"), cx:elemref.attr("cx")});
+    }
+
+    that.get_line_attr = function(elem){
+        var elemref = d3.select(elem);
+        if (elemref.empty()){
+            console.log("Warn: " + elem + " is empty"); 
+            return;
+        }
+        else{
+            var bbox = elemref.node().getBBox();
+            return ({x:bbox.x, y:bbox.y, width:bbox.width, height:bbox.height});
+        }
+    }
+
     that.paint_srcs = function(){
+        //var src_data = that.feeder.get_data().map(
+        //                   function(e){ return e.src }
+        //               ).unique();
         var srcs = that.get_can().selectAll(".srclines")
            .data(that.feeder.get_srcs());
+           //.data(src_data);
 
         srcs.enter()
            .append("svg:line")
            .attr("class", "srclines")
+           .attr("id", function(d) { return that.css_safen("src" + d) } )
            .style("stroke", "grey")
            .attr("x1", that.winpad)
            .attr("y1", function(d, i){ return that.get_src_line_height(i) })
@@ -113,12 +173,13 @@ var rend = function(spec){
             .key(function(d) { return d.dst })
             .entries(sets);
 
-        console.log("nest", nest);
-
         var dstsg = that.get_can().selectAll(".dst-group")
             .data(nest).enter()
             .append("svg:g")
+            .attr("id", function (d) { return that.css_safen("dst-group" + d.key)})
             .attr("class", "dst-group")
+            .attr("x", function (d,i){ return (that.winpad + host_width * i) })
+            .attr("y", function (d,i){ return that.winpad })
             .attr("transform", function (d,i){ return "translate("+ (that.winpad + host_width * i) +", "+that.winpad+")"});
         
         var boxes = dstsg.selectAll(".dst-box")
@@ -126,16 +187,13 @@ var rend = function(spec){
             .enter()
             .append("svg:rect")
             .attr("x", function(d, i) { return 0 })
-            .attr("y", -that.dst_box_height)
+            .attr("y", that.winpad)
             .attr("class", "dst-box")
-            .attr("id", function(d) { return "dst" + d } )
+            .attr("id", function(d) { return that.css_safen("dst" + d.dst) } )
             .style("stroke", "grey")
+            .attr("fill", "none")
             .attr("width", host_width)
-            .attr("height", that.dst_box_height)
-            .transition()
-                .attr("fill", "none")
-                .attr("y", that.winpad)
-                .duration(2000);
+            .attr("height", that.dst_box_height);
 
         dstsg.selectAll(".dst-box-label")
             .data(function(d, i){ return(d.values)})
@@ -156,13 +214,20 @@ var rend = function(spec){
     that.paint_ports = function(dst, ports){
         var circles = d3.selectAll(".dst-group")
             .selectAll(".dportbox")
-            .data(function(d, i){ return  d.values[0].ports})
+            .data(function(d, i){ 
+                return(  
+                    d.values[0].ports.map(function (e,i,o){ 
+                        return { dst: d.values[0].dst, port: e }
+                    })
+                )
+            })
             .enter().append("svg:circle")
             .attr("cy", that.dst_box_height + that.port_rad + that.winpad )
-            .attr("cx", function (d, i){ console.log("xpos", d, i); return (that.port_rad * 2 * i + that.port_rad)  })
+            .attr("cx", function (d, i){ return (that.port_rad * 2 * i + that.port_rad)  })
+            .attr("id", function (d) { return that.css_safen("port" + d.dst + "_" + d.port) })
             .attr("fill", "none")
             .attr("stroke", "grey")
-            .text(function(d, i) { d })
+            .text(function(d, i) { d.port })
             .attr("color", "white")
             .attr("r", that.port_rad);
         d3.selectAll(".dst-group").selectAll(".dportlabel")
@@ -170,7 +235,7 @@ var rend = function(spec){
             .enter()
             .append("text")
             .attr("y", that.dst_box_height + that.port_rad + that.winpad )
-            .attr("x", function (d, i){ console.log("xpos", d, i); return (that.port_rad * 2 * i + that.port_rad)  })
+            .attr("x", function (d, i){ return (that.port_rad * 2 * i + that.port_rad)  })
             .attr("dy", "0.3em")
             .attr("dx", "0em")
             .style("color", "white")
@@ -181,11 +246,14 @@ var rend = function(spec){
     }
 
     that.redraw = function(){
-        //that.paint_sweep();
-        console.log(that.feeder.get_refresh_time());
+        that.paint_conns();
         if (that.feeder.is_running()){
             setTimeout(function(){that.redraw()}, that.feeder.get_refresh_time());
         }
+    }
+
+    that.css_safen = function(s){
+        return s.replace(/\./g, "_");
     }
 
     return that;
@@ -218,6 +286,14 @@ var feeder = function(spec){
         that.tick();
     }
 
+    that.get_data = function(){
+        return data;
+    }
+
+    that.get_conns = function(){
+        return that.conns;
+    }
+
     that.get_dsts = function(){
         return that.dsts;
     }
@@ -242,6 +318,10 @@ var feeder = function(spec){
         return that.slottime;
     }
 
+    that.get_runtime = function(){
+        return that.runtime;
+    }
+
     that.get_min_time = function(){
         return that.time_start;
     }
@@ -251,13 +331,31 @@ var feeder = function(spec){
     }
 
     that.tick = function(){
+        that.conns = [];
+
         if (that.time < that.time_end){
             that.time = that.time + ((that.time_end - that.time_start) / (that.runtime / that.slottime));
+            
+            that.conns = that.find_events_older_than(that.time);
             setTimeout(function(){that.tick()}, that.slottime); 
         }
         else{
             that.running = false;
         }
+    }
+
+    that.find_events_older_than = function(time){
+            var found_events = [];
+            for (var i = 0; i < data.length; i++){
+                if (data[i].time <= time){
+                    found_events.push(data[i]);
+                }
+                // data must be sorted by time for efficiency
+                else{
+                    break;
+                }
+            }
+            return found_events;
     }
 
     that.init_timer = function(){
