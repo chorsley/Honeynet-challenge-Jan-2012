@@ -11,7 +11,7 @@ var rend = function(spec){
     that.canh = spec.canh || $(window).height() - (that.winpad * 2);
     that.dst_box_height = 30;
     that.port_rad = 15;
-    that.cached_coords = {};
+    that.cached_colors = {};
 
     that.s = null;
 
@@ -22,6 +22,8 @@ var rend = function(spec){
     var time_scale = d3.scale.linear()
                      .domain([that.feeder.get_min_time(), that.feeder.get_max_time()])
                      .range([that.winpad, that.canw - that.winpad]);
+
+    var color_scale = d3.scale.category20();
 
     that.init = function(){
         that.s = d3.select("#viz")
@@ -70,7 +72,7 @@ var rend = function(spec){
                .enter()
                .append("svg:line")
                .attr("class", "sweep") 
-               .style("stroke", "lime")
+               .style("stroke", "black")
                .attr("y1", 0)
                .attr("y2", that.canh)
                .attr("x1", function(d){ return d })
@@ -91,7 +93,15 @@ var rend = function(spec){
 
         conn_lines.enter()
             .append("svg:line")
-            .style("stroke", "blue")
+            .style("stroke", function(d,i){
+                if (that.cached_colors.hasOwnProperty(d.dport)){
+                    return that.cached_colors[d.dport];
+                }
+                else{
+                    return color_scale(i);
+                }
+            })
+            .attr("stroke-width", 2)
             .attr("class", "connline")
             .attr("y1", function(d, i) { 
                 return (that.get_line_attr(that.css_safen("#src"+d.src)).y);
@@ -102,6 +112,7 @@ var rend = function(spec){
             .attr("x1", function(d) {return time_scale(d.time) })
             .attr("x2", function(d) {return time_scale(d.time) })
             .transition()
+                .ease("linear")
                 .duration(1000)
                 .attr("x2", function (d) { 
                     return that.get_circle_attr(d.dst, d.dport).cx 
@@ -134,12 +145,8 @@ var rend = function(spec){
     }
 
     that.paint_srcs = function(){
-        //var src_data = that.feeder.get_data().map(
-        //                   function(e){ return e.src }
-        //               ).unique();
         var srcs = that.get_can().selectAll(".srclines")
            .data(that.feeder.get_srcs());
-           //.data(src_data);
 
         srcs.enter()
            .append("svg:line")
@@ -175,6 +182,8 @@ var rend = function(spec){
             .append("svg:g")
             .attr("id", function (d) { return that.css_safen("dst-group" + d.key)})
             .attr("class", "dst-group")
+            .attr("fill", function(d,i){ return color_scale(i)})
+            .attr("color", "black")
             .attr("x", function (d,i){ return (that.winpad + host_width * i) })
             .attr("y", function (d,i){ return that.winpad })
             .attr("transform", function (d,i){ return "translate("+ (that.winpad + host_width * i) +", "+that.winpad+")"});
@@ -186,9 +195,10 @@ var rend = function(spec){
             .attr("x", function(d, i) { return 0 })
             .attr("y", that.winpad)
             .attr("class", "dst-box")
+            .style("color", "black")
             .attr("id", function(d) { return that.css_safen("dst" + d.dst) } )
             .style("stroke", "grey")
-            .attr("fill", "none")
+            .attr("fill", function(d,i){ console.log(i, color_scale(i))})
             .attr("width", host_width)
             .attr("height", that.dst_box_height);
 
@@ -200,7 +210,7 @@ var rend = function(spec){
             .attr("y", that.dst_box_height / 2)
             .attr("dy", "1.3em")
             .attr("dx", "1em")
-            .style("color", "white")
+            .attr("fill", "black")
             .attr("class", "dst-box-label")
             .attr("text-anchor", "middle")
             .text(function(d,i) { return d.dst });
@@ -214,28 +224,36 @@ var rend = function(spec){
             .data(function(d, i){ 
                 return(  
                     d.values[0].ports.map(function (e,i,o){ 
-                        return { dst: d.values[0].dst, port: e }
+                        return { dst: d.values[0].dst, dport: e }
                     })
                 )
             })
             .enter().append("svg:circle")
             .attr("cy", that.dst_box_height + that.port_rad + that.winpad )
             .attr("cx", function (d, i){ return (that.port_rad * 2 * i + that.port_rad)  })
-            .attr("id", function (d) { return that.css_safen("port" + d.dst + "_" + d.port) })
-            .attr("fill", "none")
+            .attr("id", function (d) { return that.css_safen("port" + d.dst + "_" + d.dport) })
+            .style("fill", function(d,i){
+                if (that.cached_colors.hasOwnProperty(d.dport)){
+                    return that.cached_colors[d.dport];
+                }
+                else{
+                    that.cached_colors[d.dport] = color_scale(Object.size(that.cached_colors));
+                    return that.cached_colors[d.dport];
+                }
+            })
             .attr("stroke", "grey")
-            .text(function(d, i) { d.port })
+            .text(function(d) { d.dport })
             .attr("color", "white")
             .attr("r", that.port_rad);
         d3.selectAll(".dst-group").selectAll(".dportlabel")
-            .data(function(d, i){ return  d.values[0].ports})
+            .data(function(d){ return  d.values[0].ports})
             .enter()
             .append("text")
             .attr("y", that.dst_box_height + that.port_rad + that.winpad )
             .attr("x", function (d, i){ return (that.port_rad * 2 * i + that.port_rad)  })
             .attr("dy", "0.3em")
             .attr("dx", "0em")
-            .style("color", "white")
+            .style("fill", "white")
             .attr("class", "dst-box-label")
             .attr("text-anchor", "middle")
             .text(function(d,i) { return d });
@@ -243,6 +261,7 @@ var rend = function(spec){
     }
 
     that.redraw = function(){
+        console.log(that.cached_colors);
         that.paint_conns();
         if (that.feeder.is_running()){
             setTimeout(function(){that.redraw()}, that.feeder.get_refresh_time());
@@ -268,7 +287,7 @@ var feeder = function(spec){
     that.dsts = [];
     that.srcs = [];
     that.dst_ports = [];
-    that.conns = [];
+    that.conns_colors = [];
     that.time_start;
     that.time_end;
     that.time = spec.time || 0;
@@ -276,8 +295,8 @@ var feeder = function(spec){
     
     that.init = function(){
         // TODO: put all collection routines in single loop
-        that.dsts = data.map(function(e,i,o){return e.dst}).unique(); 
-        that.srcs = data.map(function(e,i,o){return e.src}).unique(); 
+        that.dsts = data.map(function(e){return e.dst}).unique(); 
+        that.srcs = data.map(function(e){return e.src}).unique(); 
         that.dst_ports = that.map_dst_host_ports();
         that.init_timer();
         that.tick();
@@ -419,3 +438,10 @@ Array.prototype.unique = function() {
     return r;
 };
 
+Object.size = function(obj) {
+    var size = 0, key;
+    for (key in obj) {
+        if (obj.hasOwnProperty(key)) size++;
+    }
+    return size;
+};
