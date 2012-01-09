@@ -4,6 +4,10 @@ body {
     color: #041BB5;
 }
 
+.hud {
+    font-family: Helvetica, Arial;
+}
+
 .dst-box-label {
     color: white;
     font-family: Helvetica, Arial;
