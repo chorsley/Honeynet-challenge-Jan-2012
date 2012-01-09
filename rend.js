@@ -102,26 +102,23 @@ var rend = function(spec){
             .attr("x1", function(d) {return time_scale(d.time) })
             .attr("x2", function(d) {return time_scale(d.time) })
             .transition()
-                .duration(2000)
+                .duration(1000)
                 .attr("x2", function (d) { 
-                    that.get_circle_attr(d.dst, d.dport).cx 
+                    return that.get_circle_attr(d.dst, d.dport).cx 
                 })
                 .attr("y2", function(d,i){ 
-                    that.get_circle_attr(d.dst, d.dport).cy
+                    return that.get_circle_attr(d.dst, d.dport).cy + that.port_rad
                 });
     }
 
     that.get_circle_attr = function(dst, dport){
-        console.log(dst, dport);
-        var parref = d3.selectAll(that.css_safen("#dst-group"+dst));
-        var parbbox = parref.node().getBBox();
-        console.log("Dst group bbox", parref, parref.transform, parbbox, parbbox.x, parbbox.y);
-        var elemref = d3.selectAll(that.css_safen("#port"+dst+"_"+dport));
-        //console.log(parbbox.x);
-        console.log("Circle", elemref, elemref.attr("cy"), elemref.attr("cx"));
-        console.log("Circle trans", elemref.transX);
+        // need to translate back from the svg group co-ords:
+        // is there a nicer way to do this?
+        var elemref = d3.select(that.css_safen("#port" + dst + "_" + dport));
+        var gref = d3.select(that.css_safen("#dst-group" + dst));
 
-        return({cy:elemref.attr("cy"), cx:elemref.attr("cx")});
+        return({cy:(+elemref.attr("cy")) + (+gref.attr("y")), 
+                cx:(+elemref.attr("cx")) + (+gref.attr("x"))});
     }
 
     that.get_line_attr = function(elem){
