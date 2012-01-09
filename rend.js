@@ -32,7 +32,7 @@ var rend = function(spec){
         .attr("height", that.canh);
         that.paint_dsts(); 
         that.paint_ports();
-        that.paint_srcs(); 
+        //that.paint_srcs(); 
         that.paint_sweep();
         that.redraw();
     }
@@ -42,7 +42,33 @@ var rend = function(spec){
     }
 
     that.get_src_line_height = function(n){
-        return src_y_scale(n + 1 / that.feeder.get_srcs().length); 
+        return src_y_scale(n / that.feeder.get_data().map(
+                function(e){ return e.src })
+                .unique().length); 
+        //return src_y_scale(n + 1 / that.feeder.get_srcs().length); 
+    }
+
+    that.get_host_box_width = function(n){
+        return (that.canw - that.winpad * 2) / (that.feeder.get_dsts().length);
+    }
+   
+    that.paint_sweep = function(){
+        /*var currtime = that.feeder.get_time();
+        console.log(time_scale(currtime), currtime);
+        var x = 0;
+        */
+        var currtime = that.feeder.get_time();
+        var sweep = that.get_can().selectAll(".sweep");
+        /*console.log(sweep, sweep.empty());
+        if (!sweep.empty()){
+            console.log("x1",sweep.x1);
+            x = sweep.attr("x1");
+
+            sweep.transition()
+        return src_y_scale(n + 1 / that.feeder.get_data().map(
+                function(e){ return e.src })
+                .unique.length); 
+        //return src_y_scale(n + 1 / that.feeder.get_srcs().length); 
     }
 
     that.get_host_box_width = function(n){
@@ -72,6 +98,7 @@ var rend = function(spec){
                .enter()
                .append("svg:line")
                .attr("class", "sweep") 
+               .attr("id", "sweep")
                .style("stroke", "black")
                .attr("y1", 0)
                .attr("y2", that.canh)
@@ -102,6 +129,14 @@ var rend = function(spec){
                 }
             })
             .attr("stroke-width", 2)
+            .attr("stroke-dasharray", function(d){
+                    if (!d.valid){
+                        return [10,10];
+                    }
+                    else{
+                        return "none";
+                    }
+            })
             .attr("class", "connline")
             .attr("y1", function(d, i) { 
                 return (that.get_line_attr(that.css_safen("#src"+d.src)).y);
@@ -153,19 +188,20 @@ var rend = function(spec){
            .attr("class", "srclines")
            .attr("id", function(d) { return that.css_safen("src" + d) } )
            .style("stroke", "grey")
-           .attr("x1", that.winpad)
+           .attr("x1", that.get_line_attr("#sweep").x)
            .attr("y1", function(d, i){ return that.get_src_line_height(i) })
            .attr("x2", that.canw)
            .attr("y2", function(d, i){ return that.get_src_line_height(i) });
         srcs.enter()
             .append("text")
-            .attr("x", 0)
+            //.attr("x", 0)
+            .attr("x", that.get_line_attr("#sweep").x)
             .attr("y", function(d, i){ return that.get_src_line_height(i) })
             .attr("dy", "1em")
-            .attr("dx", "1em")
-            .style("color", "white")
+            .attr("dx", "0em")
+            .style("fill", "white")
             .attr("class", "src-line-label")
-            .attr("text-anchor", "right")
+            .attr("text-anchor", "left")
             .text(function(d) { return d });
     }
 
@@ -183,7 +219,6 @@ var rend = function(spec){
             .attr("id", function (d) { return that.css_safen("dst-group" + d.key)})
             .attr("class", "dst-group")
             .attr("fill", function(d,i){ return color_scale(i)})
-            .attr("color", "black")
             .attr("x", function (d,i){ return (that.winpad + host_width * i) })
             .attr("y", function (d,i){ return that.winpad })
             .attr("transform", function (d,i){ return "translate("+ (that.winpad + host_width * i) +", "+that.winpad+")"});
@@ -195,7 +230,6 @@ var rend = function(spec){
             .attr("x", function(d, i) { return 0 })
             .attr("y", that.winpad)
             .attr("class", "dst-box")
-            .style("color", "black")
             .attr("id", function(d) { return that.css_safen("dst" + d.dst) } )
             .style("stroke", "grey")
             .attr("fill", function(d,i){ console.log(i, color_scale(i))})
@@ -262,6 +296,7 @@ var rend = function(spec){
 
     that.redraw = function(){
         console.log(that.cached_colors);
+        that.paint_srcs(); 
         that.paint_conns();
         if (that.feeder.is_running()){
             setTimeout(function(){that.redraw()}, that.feeder.get_refresh_time());
@@ -296,7 +331,7 @@ var feeder = function(spec){
     that.init = function(){
         // TODO: put all collection routines in single loop
         that.dsts = data.map(function(e){return e.dst}).unique(); 
-        that.srcs = data.map(function(e){return e.src}).unique(); 
+        //that.srcs = data.map(function(e){return e.src}).unique(); 
         that.dst_ports = that.map_dst_host_ports();
         that.init_timer();
         that.tick();
@@ -354,6 +389,7 @@ var feeder = function(spec){
             
             that.conns = that.find_events_older_than(that.time);
             setTimeout(function(){that.tick()}, that.slottime); 
+            console.log(that.srcs);
         }
         else{
             that.running = false;
@@ -366,10 +402,15 @@ var feeder = function(spec){
                 if (data[i].time <= time){
                     found_events.push(data[i]);
                 }
-                // data must be sorted by time for efficiency
+               // data must be sorted by time for efficiency
                 else{
                     break;
                 }
+               
+                if (that.srcs.indexOf(data[i].src) < 0){
+                    that.srcs.push(data[i].src);
+                }
+ 
             }
             return found_events;
     }
