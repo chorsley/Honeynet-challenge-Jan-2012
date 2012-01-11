@@ -12,6 +12,8 @@ var rend = function(spec){
     that.dst_box_height = 30;
     that.port_rad = 15;
     that.cached_colors = {};
+    that.highlights = {};
+    that.status_msg;
 
     that.s = null;
 
@@ -29,15 +31,32 @@ var rend = function(spec){
     that.init = function(){
         that.s = d3.select("#viz")
         .append("svg:svg")
+        .attr("class", "bgcanvas")
         .attr("width", that.canw)
-        .attr("height", that.canh);
+        .attr("height", that.canh)
+        .on("click", function(d, i){
+            // clear all highlights if you click canvas
+           if (d3.event.target.tagName == "svg"){
+                that.set_highlights();
+           }
+       });
 
         that.paint_dsts(); 
         that.paint_ports();
         that.paint_sweep();
         that.paint_time_hud();
-        that.paint_data_hud();
         that.redraw();
+    }
+
+    that.set_highlights = function(type, value){
+        for (var k in that.highlights){
+            delete that.highlights[k];
+        }
+
+        if (type && value){
+            that.highlights[type] = value;
+        }
+
     }
 
     that.get_can = function(){
@@ -45,9 +64,7 @@ var rend = function(spec){
     }
 
     that.get_src_line_height = function(n){
-        console.log( that.feeder.get_data().length, n, src_y_scale(n));
         return src_y_scale(n);
-        //return src_y_scale(n + 1 / that.feeder.get_srcs().length); 
     }
 
     that.get_host_box_width = function(n){
@@ -71,8 +88,16 @@ var rend = function(spec){
             .text(function(d){ var d = new Date(); d.setTime(that.feeder.get_time() * 1000); return d});
     }
 
-    that.paint_data_hud = function(){
-
+    that.paint_data_hud = function(t){
+        var data_hud = that.get_can().selectAll("#data-hud")
+            .data([t])
+            .enter()
+            .append("svg:text")
+            .attr("id", "data-hud")
+            .attr("class", "hud")
+            .attr("x", that.winpad)
+            .attr("y", that.canh)
+            .text(t);
     }
 
     that.paint_sweep = function(){
@@ -99,10 +124,11 @@ var rend = function(spec){
     that.paint_conns = function(){
         var conns = that.feeder.get_conns();
 
-        var conn_lines = that.get_can().selectAll(".connline")
-            .data(conns);
+        var conn_lines_elem = that.get_can().selectAll(".connline");
 
-        conn_lines.enter()
+        var conn_lines = conn_lines_elem
+            .data(conns)
+            .enter()
             .append("svg:line")
             .style("stroke", function(d,i){
                 if (that.cached_colors.hasOwnProperty(d.dport)){
@@ -142,6 +168,33 @@ var rend = function(spec){
                 .attr("y2", function(d,i){ 
                     return that.get_circle_attr(d.dst, d.dport).cy + that.port_rad
                 });
+
+            conn_lines_elem.transition()
+                .delay(500)
+                .style("stroke", function(d, i){
+                    var pass = true;
+
+                    for (var k in that.highlights){
+                        if (d.hasOwnProperty(k)){
+                           if (that.highlights[k] != d[k]){
+                               pass = false;
+                               break;
+                           }
+                        }
+                    }
+
+                    if (pass){
+                        if (that.cached_colors.hasOwnProperty(d.dport)){
+                            return that.cached_colors[d.dport];
+                        }
+                        else{
+                            return port_color_scale(i);
+                        }
+                    }
+                    else{
+                        return "#999999";
+                    }
+               })
     }
 
     that.get_circle_attr = function(dst, dport){
@@ -204,6 +257,7 @@ var rend = function(spec){
             //.attr("x", that.get_line_attr("#sweep").x)
             .attr("x", that.can_w)
             .attr("y", function(d, i){ return that.get_src_line_height(i) })
+            .on("click", function(d) { that.set_highlights("src", d) })
             .attr("dy", "1em")
             .attr("dx", "0em")
             .style("fill", "white")
@@ -234,6 +288,7 @@ var rend = function(spec){
             .data(function(d, i){ return(d.values)})
             .enter()
             .append("svg:rect")
+            .on("click", function(d) { that.set_highlights("dst", d.dst)})
             .attr("x", function(d, i) { return 0 })
             .attr("y", that.winpad)
             .attr("class", "dst-box")
@@ -247,6 +302,7 @@ var rend = function(spec){
             .data(function(d, i){ return(d.values)})
             .enter()
             .append("text")
+            .on("click", function(d){ that.set_highlights("dst", d.dst) })
             .attr("x", host_width / 2)
             .attr("y", that.dst_box_height / 2)
             .attr("dy", "1em")
@@ -284,6 +340,7 @@ var rend = function(spec){
                 }
             })
             .attr("stroke", "grey")
+            .on("click", function(d) { that.set_highlights("dport", d.dport) })
             .text(function(d) { d.dport })
             .attr("color", "white")
             .attr("r", that.port_rad);
@@ -295,6 +352,7 @@ var rend = function(spec){
             .attr("x", function (d, i){ return (that.port_rad * 2 * i + that.port_rad)  })
             .attr("dy", "0.3em")
             .attr("dx", "0em")
+            .on("click", function(d) { that.set_highlights("dport", d.dport) })
             .style("fill", "white")
             .attr("class", "dst-box-label")
             .attr("text-anchor", "middle")
@@ -305,6 +363,7 @@ var rend = function(spec){
         that.paint_srcs(); 
         that.paint_conns();
         that.paint_time_hud();
+        that.paint_data_hud("Help");
         //if (that.feeder.is_running()){
         setTimeout(function(){that.redraw()}, that.feeder.get_refresh_time());
         //}
