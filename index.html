@@ -5,6 +5,7 @@
     <script type="text/javascript" src="d3.js"></script>
     <script type="text/javascript" src="http://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.7.1.min.js"></script>
     <script type="text/javascript" src="rend.js"></script>
+    <script type="text/javascript" src="traffic.json"></script>
 </head>
 <body>
     <div id="viz"></div>
@@ -41,7 +42,7 @@
         { src: "192.168.0.4", dst: "172.168.1.1", dport: "22", valid: true, time: 1325666350 },
     ];
 
-    var feeder = feeder({data:attacks});
+    var feeder = feeder({data:traffic});
     feeder.init();
     var rend = rend({feeder:feeder});
     
