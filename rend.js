@@ -43,10 +43,22 @@ var rend = function(spec){
 
         that.paint_dsts(); 
         that.paint_ports();
-        that.paint_sweep();
         that.paint_time_hud();
+        that.paint_end_sweep();
         that.redraw();
     }
+
+    that.redraw = function(){
+        console.log("redrawing");
+        that.paint_srcs(); 
+        that.paint_conns();
+        that.paint_time_hud();
+        that.paint_data_hud("Help");
+        //if (that.feeder.is_running()){
+        setTimeout(function(){that.redraw()}, that.feeder.get_refresh_time());
+        //}
+    }
+
 
     that.set_highlights = function(type, value){
         for (var k in that.highlights){
@@ -100,8 +112,8 @@ var rend = function(spec){
             .text(t);
     }
 
-    that.paint_sweep = function(){
-       var currtime = that.feeder.get_time();
+    that.paint_end_sweep = function(){
+       var currtime = that.feeder.get_sweep_end_time();
        var sweep = that.get_can().selectAll(".sweep");
        sweep
            .data([time_scale(currtime)])
@@ -116,13 +128,32 @@ var rend = function(spec){
            .attr("x1", function(d){ return d })
            .attr("x2", function(d){ return d })
            .call(d3.behavior.drag()
-               .on("drag", function(d){ console.log(d)})
+               .on("dragend", function(d){ 
+                   console.log("Dragged", time_scale.invert(d3.event.x) );
+                   //that.feeder.set_sweep_start_time(time_scale.invert(d3.event.x) );
+                   that.feeder.update_data();
+                   that.redraw();
+               })
+               .on("drag", function(d){
+                   console.log("Dragging", time_scale.invert(d3.event.x) );
+                   that.feeder.set_sweep_end_time(time_scale.invert(d3.event.x) );
+                   that.paint_end_sweep();
+               })
            )
            .transition()
                .ease("linear")
                .duration(that.feeder.get_runtime())
-               .attr("x1", time_scale(that.feeder.get_max_time()))
-               .attr("x2", time_scale(that.feeder.get_max_time()));
+               .attr("x1", time_scale(that.feeder.get_sweep_end_time()))
+               .attr("x2", time_scale(that.feeder.get_sweep_end_time()));
+
+           sweep
+               .transition()
+               .duration(0)
+               .attr("x1", function (d){
+                   console.log("X", that.feeder.get_sweep_end_time());
+                   return time_scale(that.feeder.get_sweep_end_time());
+               })
+               .attr("x2", time_scale(that.feeder.get_sweep_end_time()));
     }
 
     that.paint_conns = function(){
@@ -131,47 +162,51 @@ var rend = function(spec){
         var conn_lines_elem = that.get_can().selectAll(".connline");
 
         var conn_lines = conn_lines_elem
-            .data(conns)
+            .data(conns);
+        conn_lines
             .enter()
-            .append("svg:line")
-            .style("stroke", function(d,i){
-                if (that.cached_colors.hasOwnProperty(d.dport)){
-                    return that.cached_colors[d.dport];
-                }
-                else{
-                    return port_color_scale(i);
-                }
-            })
-            .attr("stroke-width", function(d){ return d3.min([d.num_conns, 10]) })
-            .attr("stroke-dasharray", function(d){
-                    if (!d.valid){
-                        return [10,10];
+                .append("svg:line")
+                .style("stroke", function(d,i){
+                    if (that.cached_colors.hasOwnProperty(d.dport)){
+                        return that.cached_colors[d.dport];
                     }
                     else{
-                        return "none";
+                        return port_color_scale(i);
                     }
-            })
-            .attr("class", "connline")
-            .attr("desc", "Test")
-            .on("mouseover", function(d){ })
-            .attr("title", "Test")
-            .attr("y1", function(d, i) { 
-                return (that.get_line_attr(that.css_safen("#src"+d.src)).y);
-            })
-            .attr("y2", function(d, i) { 
-                return (that.get_line_attr(that.css_safen("#src"+d.src)).y);
-            })
-            .attr("x1", function(d) {return time_scale(d.time) })
-            .attr("x2", function(d) {return time_scale(d.time) })
-            .transition()
-                .ease("linear")
-                .duration(500)
-                .attr("x2", function (d) { 
-                    return that.get_circle_attr(d.dst, d.dport).cx 
                 })
-                .attr("y2", function(d,i){ 
-                    return that.get_circle_attr(d.dst, d.dport).cy + that.port_rad
-                });
+                .attr("stroke-width", function(d){ return d3.min([d.num_conns, 10]) })
+                .attr("stroke-dasharray", function(d){
+                        if (!d.valid){
+                            return [10,10];
+                        }
+                        else{
+                            return "none";
+                        }
+                })
+                .attr("class", "connline")
+                .attr("desc", "Test")
+                .on("mouseover", function(d){ })
+                .attr("title", "Test")
+                .attr("y1", function(d, i) { 
+                    return (that.get_line_attr(that.css_safen("#src"+d.src)).y);
+                })
+                .attr("y2", function(d, i) { 
+                    return (that.get_line_attr(that.css_safen("#src"+d.src)).y);
+                })
+                .attr("x1", function(d) {return time_scale(d.time) })
+                .attr("x2", function(d) {return time_scale(d.time) })
+                .transition()
+                    .ease("linear")
+                    .duration(500)
+                    .attr("x2", function (d) { 
+                        return that.get_circle_attr(d.dst, d.dport).cx 
+                    })
+                    .attr("y2", function(d,i){ 
+                        return that.get_circle_attr(d.dst, d.dport).cy + that.port_rad
+                    })
+            ;
+
+            conn_lines.exit().remove();
 
             conn_lines_elem.transition()
                 .delay(500)
@@ -359,16 +394,6 @@ var rend = function(spec){
             .attr("class", "dst-box-label")
             .attr("text-anchor", "middle")
             .text(function(d,i) { return d });
-    }
-
-    that.redraw = function(){
-        that.paint_srcs(); 
-        that.paint_conns();
-        that.paint_time_hud();
-        that.paint_data_hud("Help");
-        //if (that.feeder.is_running()){
-        setTimeout(function(){that.redraw()}, that.feeder.get_refresh_time());
-        //}
     }
 
     that.css_safen = function(s){

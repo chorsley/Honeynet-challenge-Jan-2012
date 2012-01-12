@@ -4,7 +4,7 @@ var feeder = function(spec){
 
     var data = spec.data;
     
-    that.runtime = 5000;
+    that.runtime = 1000;
     that.slottime = 100;
 
     that.dsts = [];
@@ -14,6 +14,8 @@ var feeder = function(spec){
     that.conns_colors = [];
     that.time_start;
     that.time_end;
+    that.sweep_start_time;
+    that.sweep_end_time;
     that.time = spec.time || 0;
     that.running = true;
     
@@ -24,6 +26,22 @@ var feeder = function(spec){
         that.dst_ports = that.map_dst_host_ports();
         that.init_timers();
         that.tick();
+    }
+
+    that.get_sweep_start_time = function(){
+        return that.sweep_start_time;
+    }
+
+    that.set_sweep_start_time = function(time){
+        that.sweep_start_time = time;
+    }
+
+    that.get_sweep_end_time = function(){
+        return that.sweep_end_time;
+    }
+
+    that.set_sweep_end_time = function(time){
+        that.sweep_end_time = time;
     }
 
     that.get_data = function(){
@@ -44,6 +62,11 @@ var feeder = function(spec){
 
     that.get_src_times = function(){
         return that.src_times;
+    }
+
+    that.run = function(){
+        that.running = true;
+        that.tick();
     }
 
     that.is_running = function(){
@@ -74,10 +97,16 @@ var feeder = function(spec){
         return that.time_end;
     }
 
+    that.update_data = function(){
+        console.log("Updating data");
+        that.conns = [];
+        that.conns = that.find_events_older_than(that.sweep_end_time);
+    }
+
     that.tick = function(){
         that.conns = [];
 
-        if (that.time < that.time_end){
+        if (that.time < that.sweep_end_time){
             that.time = that.time + ((that.time_end - that.time_start) / (that.runtime / that.slottime));
             
             that.conns = that.find_events_older_than(that.time);
@@ -137,6 +166,8 @@ var feeder = function(spec){
         that.time = min;
         that.time_start = min;
         that.time_end = max;
+        that.sweep_start_time = min;
+        that.sweep_end_time = max;
     }
 
     that.map_dst_host_ports = function(){
