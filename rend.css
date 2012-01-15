@@ -15,7 +15,7 @@ body {
 }
 
 .src-line-label {
-    font-size: 0.9em;
+    font-size: 15px;
     color: blue;
     font-family: Helvetica, Arial;
     cursor: pointer;
@@ -29,6 +29,11 @@ body {
     cursor: col-resize;
 }
 
-.connline .src-line-llabel {
+.connline .src-line-label {
     cursor: pointer;
+}
+
+.src-group{
+    position: absolute;
+
 }

@@ -14,12 +14,13 @@ var rend = function(spec){
     that.cached_colors = {};
     that.highlights = {};
     that.status_msg;
+    that.conn_area_y = 150;
 
     that.s = null;
 
     var src_y_scale = d3.scale.linear()
                       .domain([0, that.feeder.get_data().map(function(e){ return e.src}).unique().length])
-                      .range([150, that.canh]);
+                      .range([that.conn_area_y, that.canh]);
 
     var time_scale = d3.scale.linear()
                      .domain([that.feeder.get_min_time(), that.feeder.get_max_time()])
@@ -44,17 +45,18 @@ var rend = function(spec){
         that.paint_dsts(); 
         that.paint_ports();
         that.paint_time_hud();
+        that.paint_start_sweep();
         that.paint_end_sweep();
         that.redraw();
     }
 
     that.redraw = function(){
-        console.log("redrawing");
-        that.paint_srcs(); 
+        that.paint_srcs();
         that.paint_conns();
         that.paint_time_hud();
         that.paint_data_hud("Help");
         //if (that.feeder.is_running()){
+        that.feeder.update_data();
         setTimeout(function(){that.redraw()}, that.feeder.get_refresh_time());
         //}
     }
@@ -86,7 +88,7 @@ var rend = function(spec){
     that.paint_time_hud = function(){
         var time_elem = that.get_can().selectAll(".time");
             
-            time_elem.data([that.feeder.get_time()])
+            time_elem.data([1])
             .enter()
             .append("svg:text")
             .attr("class", "hud time")
@@ -97,7 +99,13 @@ var rend = function(spec){
             //.text(function(d){ return d });
 
         time_elem.transition()
-            .text(function(d){ var d = new Date(); d.setTime(that.feeder.get_time() * 1000); return d});
+            .text(function(d){ 
+                var start_date = new Date(); 
+                start_date.setTime(that.feeder.get_sweep_start_time() * 1000); 
+                var end_date = new Date(); 
+                end_date.setTime(that.feeder.get_sweep_end_time() * 1000); 
+                return (start_date + " - " + end_date);
+            });
     }
 
     that.paint_data_hud = function(t){
@@ -113,56 +121,77 @@ var rend = function(spec){
     }
 
     that.paint_end_sweep = function(){
-       var currtime = that.feeder.get_sweep_end_time();
-       var sweep = that.get_can().selectAll(".sweep");
+       var time = that.feeder.get_sweep_end_time();
+
+       sweep = that.paint_sweep("end", time, that.update_end_sweep);
+       
        sweep
-           .data([time_scale(currtime)])
+           .attr("x1", time_scale(that.feeder.get_sweep_end_time()))
+           .attr("x2", time_scale(that.feeder.get_sweep_end_time()));
+
+    }
+
+    that.update_end_sweep = function(x){
+        that.feeder.set_sweep_end_time(time_scale.invert(x));
+        that.paint_end_sweep();
+    }
+
+    that.paint_start_sweep = function(){
+       var time = that.feeder.get_sweep_start_time();
+
+       sweep = that.paint_sweep("start", time, that.update_start_sweep);
+       
+       sweep
+           .attr("x1", time_scale(that.feeder.get_sweep_start_time()))
+           .attr("x2", time_scale(that.feeder.get_sweep_start_time()));
+
+    }
+
+    that.update_start_sweep = function(x){
+        that.feeder.set_sweep_start_time(time_scale.invert(x));
+        that.paint_start_sweep();
+    }
+
+
+    that.paint_sweep = function(sweep_type, time, sweep_updater){
+       var sweep = that.get_can().selectAll("#sweep" + sweep_type);
+       sweep
+           .data([time_scale(time)])
            .enter()
            .append("svg:line")
            .attr("class", "sweep") 
-           .attr("id", "sweep")
+           .attr("id", "sweep" + sweep_type)
            .style("stroke", "black")
            .style("stroke-width", 3)
-           .attr("y1", 0)
+           .attr("y1", that.conn_area_y - 20)
            .attr("y2", that.canh)
            .attr("x1", function(d){ return d })
            .attr("x2", function(d){ return d })
            .call(d3.behavior.drag()
                .on("dragend", function(d){ 
-                   console.log("Dragged", time_scale.invert(d3.event.x) );
-                   //that.feeder.set_sweep_start_time(time_scale.invert(d3.event.x) );
                    that.feeder.update_data();
                    that.redraw();
                })
                .on("drag", function(d){
-                   console.log("Dragging", time_scale.invert(d3.event.x) );
-                   that.feeder.set_sweep_end_time(time_scale.invert(d3.event.x) );
-                   that.paint_end_sweep();
+                   sweep_updater(d3.event.x);
                })
            )
-           .transition()
-               .ease("linear")
-               .duration(that.feeder.get_runtime())
-               .attr("x1", time_scale(that.feeder.get_sweep_end_time()))
-               .attr("x2", time_scale(that.feeder.get_sweep_end_time()));
+           //.transition()
+           //    .ease("linear")
+           //    .duration(that.feeder.get_runtime())
+           //    .attr("x1", time_scale(that.feeder.get_sweep_end_time()))
+           //    .attr("x2", time_scale(that.feeder.get_sweep_end_time()));
 
-           sweep
-               .transition()
-               .duration(0)
-               .attr("x1", function (d){
-                   console.log("X", that.feeder.get_sweep_end_time());
-                   return time_scale(that.feeder.get_sweep_end_time());
-               })
-               .attr("x2", time_scale(that.feeder.get_sweep_end_time()));
+           return sweep;
     }
 
     that.paint_conns = function(){
         var conns = that.feeder.get_conns();
-
         var conn_lines_elem = that.get_can().selectAll(".connline");
 
         var conn_lines = conn_lines_elem
             .data(conns);
+
         conn_lines
             .enter()
                 .append("svg:line")
@@ -188,10 +217,10 @@ var rend = function(spec){
                 .on("mouseover", function(d){ })
                 .attr("title", "Test")
                 .attr("y1", function(d, i) { 
-                    return (that.get_line_attr(that.css_safen("#src"+d.src)).y);
+                    return (that.get_group_attr(that.css_safen("#src_group"+d.src)).y);
                 })
                 .attr("y2", function(d, i) { 
-                    return (that.get_line_attr(that.css_safen("#src"+d.src)).y);
+                    return (that.get_group_attr(that.css_safen("#src_group"+d.src)).y);
                 })
                 .attr("x1", function(d) {return time_scale(d.time) })
                 .attr("x2", function(d) {return time_scale(d.time) })
@@ -200,8 +229,10 @@ var rend = function(spec){
                     .duration(500)
                     .attr("x2", function (d) { 
                         return that.get_circle_attr(d.dst, d.dport).cx 
+                        //return that.canw / 2;
                     })
                     .attr("y2", function(d,i){ 
+                        //return that.get_circle_attr(d.dst, d.dport).cy + that.port_rad
                         return that.get_circle_attr(d.dst, d.dport).cy + that.port_rad
                     })
             ;
@@ -246,6 +277,17 @@ var rend = function(spec){
                 cx:(+elemref.attr("cx")) + (+gref.attr("x"))});
     }
 
+    that.get_group_attr = function(elem){
+        var elemref = d3.select(elem);
+        if (elemref.empty()){
+            console.log("Warn: " + elem + " is empty"); 
+            return;
+        }
+        else{
+            return({x: elemref.attr("x"), y: elemref.attr("y")})
+        }
+    }
+
     that.get_line_attr = function(elem){
         var elemref = d3.select(elem);
         if (elemref.empty()){
@@ -259,43 +301,62 @@ var rend = function(spec){
     }
 
     that.paint_srcs = function(){
-        var srcs = that.get_can().selectAll(".srclines")
-           .data(that.feeder.get_srcs());
+        var nest = d3.nest()
+            .key(function(d) { return d })
+            .entries(that.feeder.get_srcs());
+
+        var srcs = that.get_can().selectAll(".src-group")
+            .data(nest);
 
         srcs.enter()
+            .append("svg:g")
+            .attr("class", "src-group")
+            .attr("id", function(d){ return that.css_safen("src_group" + d.key)})
+            .attr("x", that.winpad)
+            .attr("y", function (d,i){ return that.get_src_line_height(i) })
+            .attr("transform", function (d,i){ return "translate("+ (that.winpad) +", "+that.get_src_line_height(i)+")"});
+        ;
+
+        srcs.selectAll(".srclines_base")
+           .data(function(d){ return d.values})
+           .enter()
            .append("svg:line")
            .attr("class", "srclines_base")
-           .attr("id", function(d) { return that.css_safen("srcbase" + d) } )
+           .attr("id", function(d) { console.log("R", d);return that.css_safen("srcbase" + d) } )
            .style("stroke", "#CCCCCC")
            .attr("stroke-dasharray",  [5,5])
            .attr("x1", function(d){ 
-              return that.winpad
+              return 0
            })
-           .attr("y1", function(d, i){ return that.get_src_line_height(i) })
+           .attr("y1", function(d, i){ return 0 })
            .attr("x2", function(d) { 
               return time_scale(that.feeder.get_src_times()[d].max) + 5
            })
-           .attr("y2", function(d, i){ return that.get_src_line_height(i) });
+           .attr("y2", function(d, i){ return 0 });
  
-        srcs.enter()
+        srcs.selectAll(".srcline")
+           .data(function(d){ return d.values })
+           .enter()
            .append("svg:line")
-           .attr("class", "srclines")
+           .attr("class", "srcline")
            .attr("id", function(d) { return that.css_safen("src" + d) } )
            .style("stroke", "black")
            .attr("x1", function(d){ 
               return time_scale(that.feeder.get_src_times()[d].min) - 5
            })
-           .attr("y1", function(d, i){ return that.get_src_line_height(i) })
+           .attr("y1", 0)
            .attr("x2", function(d) { 
               return time_scale(that.feeder.get_src_times()[d].max) + 5
            })
-           .attr("y2", function(d, i){ return that.get_src_line_height(i) });
+           .attr("y2", 0);
 
-        srcs.enter()
+        srcs.selectAll("src-line-label")
+            .data(function(d){ return d.values})
+            .enter()
             .append("text")
             //.attr("x", that.get_line_attr("#sweep").x)
             .attr("x", that.can_w)
-            .attr("y", function(d, i){ return that.get_src_line_height(i) })
+            .attr("y", 0)
             .on("click", function(d) { that.set_highlights("src", d) })
             .attr("dy", "1em")
             .attr("dx", "0em")
@@ -303,6 +364,9 @@ var rend = function(spec){
             .attr("class", "src-line-label")
             .attr("text-anchor", "right")
             .text(function(d) { return d });
+
+        srcs.exit().remove();
+
     }
 
     that.paint_dsts = function(){

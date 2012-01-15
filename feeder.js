@@ -5,7 +5,7 @@ var feeder = function(spec){
     var data = spec.data;
     
     that.runtime = 1000;
-    that.slottime = 100;
+    that.slottime = 1000;
 
     that.dsts = [];
     that.srcs = [];
@@ -25,7 +25,8 @@ var feeder = function(spec){
         //that.srcs = data.map(function(e){return e.src}).unique(); 
         that.dst_ports = that.map_dst_host_ports();
         that.init_timers();
-        that.tick();
+        //that.tick();
+        that.update_data();
     }
 
     that.get_sweep_start_time = function(){
@@ -98,41 +99,49 @@ var feeder = function(spec){
     }
 
     that.update_data = function(){
-        console.log("Updating data");
         that.conns = [];
-        that.conns = that.find_events_older_than(that.sweep_end_time);
+        that.conns = that.find_events_between(that.sweep_start_time, that.sweep_end_time);
+        //that.init_timers();
     }
 
     that.tick = function(){
-        that.conns = [];
+    /*    that.conns = [];
 
         if (that.time < that.sweep_end_time){
             that.time = that.time + ((that.time_end - that.time_start) / (that.runtime / that.slottime));
             
-            that.conns = that.find_events_older_than(that.time);
+            that.conns = that.find_events_between(that.sweep_start_time, that.sweep_end_time);
             setTimeout(function(){that.tick()}, that.slottime); 
         }
         else{
             that.running = false;
-        }
+        }*/
     }
 
-    that.find_events_older_than = function(time){
+    that.find_events_between = function(start_time, end_time){
             var found_events = [];
+            that.srcs = [];
+
+            // TODO: optimise!
             for (var i = 0; i < data.length; i++){
-                if (data[i].time <= time){
+                if (data[i].time >= start_time && 
+                    data[i].time <= end_time){
                     found_events.push(data[i]);
+                    if (that.srcs.indexOf(data[i].src) < 0){
+                        that.srcs.push(data[i].src);
+                    }
                 }
-               // data must be sorted by time for efficiency
-                else{
-                    break;
-                }
+                //else{
+                //    found_events.push(null);
+                //}
+                // data must be sorted by time for efficiency
+                //if (data[i].time >= end_time){
+                //     break;
+                //}
                
-                if (that.srcs.indexOf(data[i].src) < 0){
-                    that.srcs.push(data[i].src);
-                }
  
             }
+            //console.log(start_time, end_time);
             return found_events;
     }
 
