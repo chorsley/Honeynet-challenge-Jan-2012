@@ -238,7 +238,7 @@ var rend = function(spec){
                     }
                 })
                 .style("opacity", 1)
-                .attr("stroke-width", function(d){ return d3.min([d.num_conns, 10]) })
+                .attr("stroke-width", function(d){ return d3.min([d.num_conns, 5]) })
                 .attr("stroke-dasharray", function(d){
                         if (!d.valid){
                             return [10,10];
@@ -503,7 +503,7 @@ var rend = function(spec){
             .data(function(d, i){ 
                 return(  
                     d.values[0].ports.map(function (e,i,o){ 
-                        return { dst: d.values[0].dst, dport: e }
+                        return { dst: d.values[0].dst, dport: e, num_dst_ports: d.values[0].ports.length }
                     })
                 )
             })
