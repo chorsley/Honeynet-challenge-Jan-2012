@@ -124,25 +124,42 @@ var feeder = function(spec){
 
             // TODO: optimise!
             for (var i = 0; i < data.length; i++){
+                var pos;
+
                 if (data[i].time >= start_time && 
                     data[i].time <= end_time){
                     found_events.push(data[i]);
-                    if (that.srcs.indexOf(data[i].src) < 0){
-                        that.srcs.push(data[i].src);
+                    if ((pos = that.find_obj_in_arr(that.srcs, "src", data[i].src)) < 0){
+                        that.srcs.push({
+                            src: data[i].src,
+                            num_conns: 0,
+                            valid_conns: 0,
+                            invalid_conns: 0,
+                        });
+                        pos = that.srcs.length - 1;
                     }
-                }
-                //else{
-                //    found_events.push(null);
-                //}
-                // data must be sorted by time for efficiency
-                //if (data[i].time >= end_time){
-                //     break;
-                //}
-               
- 
+                    that.srcs[pos]["num_conns"] += data[i].num_conns;
+                    if (data[i].valid == true){
+                        that.srcs[pos]["valid_conns"] += data[i].num_conns;
+                    }
+                    else{
+                        that.srcs[pos]["invalid_conns"] += data[i].num_conns;
+                    }
+                } 
             }
-            //console.log(start_time, end_time);
             return found_events;
+    }
+
+    that.find_obj_in_arr = function(arr, field, val){
+        for (var i = 0; i < arr.length; i++){
+            if (arr[i].hasOwnProperty(field)){
+                if (arr[i][field] === val){
+                    return i;
+                }
+            }
+        }
+
+        return -1;
     }
 
     that.init_timers = function(){

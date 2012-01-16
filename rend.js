@@ -29,6 +29,9 @@ var rend = function(spec){
     var time_scale = d3.scale.linear()
                      .domain([that.feeder.get_sweep_start_time(), that.feeder.get_sweep_end_time()])
                      .range([that.winpad, that.canw - that.winpad]);
+    var src_trust = d3.scale.quantile()
+                     .domain([0, 0.001, 0.5, 1])
+                     .range(["black", "red", "white", "green"]);
 
     var port_color_scale = d3.scale.category20();
     var host_color_scale = d3.scale.category20b();
@@ -140,7 +143,15 @@ var rend = function(spec){
     }
 
     that.update_end_sweep = function(x){
-        that.feeder.set_sweep_end_time(time_scale.invert(x));
+        var max_bound = d3.min([time_scale.invert(x), 
+                time_scale.invert(that.canw)]);
+
+        that.feeder.set_sweep_end_time(
+            d3.max([
+                max_bound,
+                that.feeder.get_sweep_start_time() 
+            ])
+        );
         that.paint_end_sweep();
     }
 
@@ -156,7 +167,16 @@ var rend = function(spec){
     }
 
     that.update_start_sweep = function(x){
-        that.feeder.set_sweep_start_time(time_scale.invert(x));
+        //that.feeder.set_sweep_start_time(time_scale.invert(x));
+        var min_bound = d3.max([time_scale.invert(x), 
+        time_scale.invert(that.winpad)]);
+
+        that.feeder.set_sweep_start_time(
+            d3.min([
+                min_bound,
+                that.feeder.get_sweep_end_time() 
+            ])
+        );
         that.paint_start_sweep();
     }
 
@@ -173,7 +193,7 @@ var rend = function(spec){
            .style("stroke", "#666666")
            .style("stroke-width", 3)
            .attr("tooltip", "bing")
-           .attr("y1", that.conn_area_y - 20)
+           .attr("y1", that.conn_area_y - 100)
            .attr("y2", that.canh)
            .attr("x1", function(d){ return d })
            .attr("x2", function(d){ return d })
@@ -336,7 +356,7 @@ var rend = function(spec){
 
     that.paint_srcs = function(){
         var nest = d3.nest()
-            .key(function(d) { return d })
+            .key(function(d) { return d.src })
             .entries(that.feeder.get_srcs());
 
         var srcs = that.get_can().selectAll(".src_group")
@@ -349,40 +369,33 @@ var rend = function(spec){
             .attr("x", that.winpad)
             .attr("y", function (d,i){ return that.get_src_line_y(i) })
             .attr("transform", function (d,i){ return "translate("+ (that.winpad) +", "+that.get_src_line_y(i)+")"});
-        ;
 
         srcs.selectAll(".srclines_base")
            .data(function(d){ return d.values})
            .enter()
            .append("svg:line")
            .attr("class", "srclines_base")
-           .attr("id", function(d) { return that.css_safen("srcbase" + d) } )
+           .attr("id", function(d) { return that.css_safen("srcbase" + d.src) } )
            .style("stroke", "#CCCCCC")
            .attr("stroke-dasharray",  [5,5])
-           .attr("x1", function(d){ 
-              return 0
-           })
-           .attr("y1", function(d, i){ return 0 })
+           .attr("x1", 0)
+           .attr("y1", 0)
            .attr("x2", function(d) { 
-              return time_scale(that.feeder.get_src_times()[d].max) + 5
+              return time_scale(that.feeder.get_src_times()[d.src].max) + 5
            })
-           .attr("y2", function(d, i){ return 0 });
+           .attr("y2", 0);
  
         srcs.selectAll(".srclines_vert_base")
            .data(function(d){ return d.values})
            .enter()
            .append("svg:line")
            .attr("class", "srclines_vert_base")
-           .attr("id", function(d) { return that.css_safen("srcbase" + d) } )
+           .attr("id", function(d) { return that.css_safen("srcbase" + d.src) } )
            .style("stroke", "#CCCCCC")
            .attr("stroke-dasharray",  [5,5])
-           .attr("x1", function(d){ 
-              return 0
-           })
-           .attr("y1", function(d, i){ return 0 })
-           .attr("x2", function(d) { 
-              return 0
-           })
+           .attr("x1", 0)
+           .attr("y1", 0)
+           .attr("x2", 0)
            .attr("y2", function(d, i){ return that.get_src_line_height() * 0.8 });
 
         srcs.selectAll(".srcline")
@@ -390,14 +403,14 @@ var rend = function(spec){
            .enter()
            .append("svg:line")
            .attr("class", "srcline")
-           .attr("id", function(d) { return that.css_safen("src" + d) } )
+           .attr("id", function(d) { return that.css_safen("src" + d.src) } )
            .style("stroke", "black")
            .attr("x1", function(d){ 
-              return time_scale(that.feeder.get_src_times()[d].min) - 5
+              return time_scale(that.feeder.get_src_times()[d.src].min) - 5
            })
            .attr("y1", 0)
            .attr("x2", function(d) { 
-              return time_scale(that.feeder.get_src_times()[d].max) + 5
+              return time_scale(that.feeder.get_src_times()[d.src].max) + 5
            })
            .attr("y2", 0);
 
@@ -409,16 +422,20 @@ var rend = function(spec){
             .attr("x", that.can_w)
             .attr("y", 0)
             .on("click", function(d) { 
-                that.set_highlights("src", d); 
+                that.set_highlights("src", d.src); 
                 that.redraw() 
             })
             .attr("dy", "1em")
             .attr("dx", "0em")
             .style("font-size", function(d){return (that.get_src_line_height() * 0.8) + "px"})
-            .style("fill", "white")
+            .style("fill", function(d){
+                //console.log(d.src, d.valid_conns / d.num_conns);
+                return src_trust(d.valid_conns / d.num_conns)
+
+            })
             .attr("class", "src-line-label")
             .attr("text-anchor", "right")
-            .text(function(d) { return d });
+            .text(function(d) { return d.src });
 
         srcs.exit().remove()
             .transition()
