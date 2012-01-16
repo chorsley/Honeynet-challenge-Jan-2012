@@ -43,7 +43,7 @@
         { src: "192.168.0.4", dst: "172.168.1.1", dport: "22", valid: true, time: 1325666350 , num_conns: 1},
     ];
 
-    var feeder = feeder({data:traffic});
+    var feeder = feeder({data:attacks});
     feeder.init();
     var rend = rend({feeder:feeder});
     

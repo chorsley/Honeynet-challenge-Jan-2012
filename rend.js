@@ -263,12 +263,12 @@ var rend = function(spec){
                     .ease("linear")
                     .duration(500)
                     .attr("x2", function (d) { 
-                        return that.get_circle_attr(d.dst, d.dport).cx 
-                        //return that.canw / 2;
+                        var attrs = that.get_port_box_attr(d.dst, d.dport)
+                        return attrs.x + attrs.width / 2
                     })
                     .attr("y2", function(d,i){ 
-                        //return that.get_circle_attr(d.dst, d.dport).cy + that.port_rad
-                        return that.get_circle_attr(d.dst, d.dport).cy + that.port_rad
+                        var attrs = that.get_port_box_attr(d.dst, d.dport)
+                        return attrs.y + that.dst_box_height
                     })
             ;
 
@@ -329,6 +329,18 @@ var rend = function(spec){
 
         return({cy:(+elemref.attr("cy")) + (+gref.attr("y")), 
                 cx:(+elemref.attr("cx")) + (+gref.attr("x"))});
+    }
+
+    that.get_port_box_attr = function(dst, dport){
+        // need to translate back from the svg group co-ords:
+        // is there a nicer way to do this?
+        var elemref = d3.select(that.css_safen("#port" + dst + "_" + dport));
+        var gref = d3.select(that.css_safen("#dst-group" + dst));
+
+        return({y:(+elemref.attr("y")) + (+gref.attr("y")), 
+                x:(+elemref.attr("x")) + (+gref.attr("x")),
+                width:(+elemref.attr("width"))
+            });
     }
 
     that.get_group_attr = function(elem){
@@ -498,7 +510,7 @@ var rend = function(spec){
     }
 
     that.paint_ports = function(dst, ports){
-        var circles = d3.selectAll(".dst-group")
+        /*var circles = d3.selectAll(".dst-group")
             .selectAll(".dportbox")
             .data(function(d, i){ 
                 return(  
@@ -525,13 +537,50 @@ var rend = function(spec){
             .on("click", function(d) { that.set_highlights("dport", d.dport) })
             .text(function(d) { d.dport })
             .attr("color", "white")
-            .attr("r", that.port_rad);
-        d3.selectAll(".dst-group").selectAll(".dportlabel")
-            .data(function(d){ return  d.values[0].ports})
-            .enter()
+            .attr("r", that.port_rad);*/
+        var port_rects = d3.selectAll(".dst-group")
+            .selectAll(".dportbox")
+            .data(function(d, i){ 
+                return(  
+                    d.values[0].ports.map(function (e,i,o){ 
+                        return { dst: d.values[0].dst, dport: e, num_dst_ports: d.values[0].ports.length }
+                    })
+                )
+            });
+
+        port_rects.enter().append("svg:rect")
+            .attr("x", function (d, i){ 
+                //console.log(that.get_host_box_width(), d.num_dst_ports)
+                return (that.get_host_box_width() / d.num_dst_ports) * i  
+            })
+            .attr("y", that.dst_box_height + that.winpad )
+            .attr("width", function (d, i){ return (that.get_host_box_width() / d.num_dst_ports) })
+            .attr("height", that.dst_box_height)
+            .attr("title", "Test")
+            .attr("id", function (d) { return that.css_safen("port" + d.dst + "_" + d.dport) })
+            .style("fill", function(d,i){
+                if (that.cached_colors.hasOwnProperty(d.dport)){
+                    return that.cached_colors[d.dport];
+                }
+                else{
+                    that.cached_colors[d.dport] = port_color_scale(Object.size(that.cached_colors));
+                    return that.cached_colors[d.dport];
+                }
+            })
+            .attr("stroke", "grey")
+            .on("click", function(d) { 
+                that.set_highlights("dport", d.dport);
+                that.redraw();
+            })
+            .text(function(d) { return d.dport });
+
+        port_rects.enter()
             .append("text")
-            .attr("y", that.dst_box_height + that.port_rad + that.winpad )
-            .attr("x", function (d, i){ return (that.port_rad * 2 * i + that.port_rad)  })
+            .attr("x", function (d, i){ 
+                //console.log(that.get_host_box_width(), d.num_dst_ports)
+                return (that.get_host_box_width() / d.num_dst_ports) * i +  that.get_host_box_width() / d.num_dst_ports * 0.5
+            })
+            .attr("y", that.dst_box_height * 1.5 + that.winpad )
             .attr("dy", "0.3em")
             .attr("dx", "0em")
             .on("click", function(d) { 
@@ -541,7 +590,7 @@ var rend = function(spec){
             .style("fill", "white")
             .attr("class", "dst-box-label")
             .attr("text-anchor", "middle")
-            .text(function(d,i) { return d });
+            .text(function(d,i) { return d.dport });
     }
 
     that.css_safen = function(s){
