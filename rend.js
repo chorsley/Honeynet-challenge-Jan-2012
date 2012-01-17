@@ -15,6 +15,7 @@ var rend = function(spec){
     that.highlights = {};
     that.status_msg;
     that.conn_area_y = 150;
+    that.conn_line_pad = 2;
     that.inactive_opactity = 0.3;
 
     that.s = null;
@@ -249,7 +250,7 @@ var rend = function(spec){
                 })
                 .attr("class", "connline")
                 .attr("desc", "Test")
-                .on("mouseover", function(d){ })
+                .on("click", function(d){ })
                 .attr("title", "Test")
                 .attr("y1", function(d, i) { 
                     return (that.get_group_attr(that.css_safen("#src_group"+d.src)).y);
@@ -393,7 +394,7 @@ var rend = function(spec){
            .attr("x1", 0)
            .attr("y1", 0)
            .attr("x2", function(d) { 
-              return time_scale(that.feeder.get_src_times()[d.src].max) + 5
+              return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad
            })
            .attr("y2", 0);
  
@@ -418,11 +419,11 @@ var rend = function(spec){
            .attr("id", function(d) { return that.css_safen("src" + d.src) } )
            .style("stroke", "black")
            .attr("x1", function(d){ 
-              return time_scale(that.feeder.get_src_times()[d.src].min) - 5
+              return time_scale(that.feeder.get_src_times()[d.src].min) - that.conn_line_pad
            })
            .attr("y1", 0)
            .attr("x2", function(d) { 
-              return time_scale(that.feeder.get_src_times()[d.src].max) + 5
+              return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad
            })
            .attr("y2", 0);
 
@@ -434,8 +435,9 @@ var rend = function(spec){
             .attr("x", that.can_w)
             .attr("y", 0)
             .on("click", function(d) { 
-                that.set_highlights("src", d.src); 
-                that.redraw() 
+                that.set_highlights("src", d.src);
+                that.redraw()
+                set_infobox();
             })
             .attr("dy", "1em")
             .attr("dx", "0em")

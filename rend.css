@@ -1,7 +1,5 @@
 body {
-    #background-color: #041BB5;
     background-color: darkgrey;
-    #background-color: white;
     color: #041BB5;
 }
 
@@ -31,4 +29,10 @@ body {
 
 .connline .src-line-label {
     cursor: pointer;
+}
+
+#infobox {
+    position: absolute;
+    display: none;
+    background: #deebfa;
 }

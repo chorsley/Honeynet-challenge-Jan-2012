@@ -4,13 +4,17 @@
     <link rel="stylesheet" type="text/css" href="rend.css" />
     <script type="text/javascript" src="d3.js"></script>
     <script type="text/javascript" src="http://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.7.1.min.js"></script>
+    <script type="text/javascript" src="jquery-tooltip/jquery.tooltip.min.js"></script>
     <script type="text/javascript" src="feeder.js"></script>
     <script type="text/javascript" src="rend.js"></script>
     <script type="text/javascript" src="traffic.json"></script>
 </head>
 <body>
+    <div id="infobox">Test</div>
+
     <div id="viz"></div>
     <script type="text/javascript">
+    $("body").tooltip();
 
     var attacks = [
         { src: "192.168.0.1", dst: "172.168.1.2", dport: "45", valid: true, time: 1325666240 , num_conns: 1},
@@ -43,12 +47,11 @@
         { src: "192.168.0.4", dst: "172.168.1.1", dport: "22", valid: true, time: 1325666350 , num_conns: 1},
     ];
 
-    var feeder = feeder({data:attacks});
+    var feeder = feeder({data:traffic});
     feeder.init();
     var rend = rend({feeder:feeder});
     
     rend.init();
-
 
 </script>
 </body>
