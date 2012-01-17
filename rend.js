@@ -322,16 +322,6 @@ var rend = function(spec){
                })
     }
 
-    that.get_circle_attr = function(dst, dport){
-        // need to translate back from the svg group co-ords:
-        // is there a nicer way to do this?
-        var elemref = d3.select(that.css_safen("#port" + dst + "_" + dport));
-        var gref = d3.select(that.css_safen("#dst-group" + dst));
-
-        return({cy:(+elemref.attr("cy")) + (+gref.attr("y")), 
-                cx:(+elemref.attr("cx")) + (+gref.attr("x"))});
-    }
-
     that.get_port_box_attr = function(dst, dport){
         // need to translate back from the svg group co-ords:
         // is there a nicer way to do this?
@@ -381,6 +371,11 @@ var rend = function(spec){
             .attr("id", function(d){ return that.css_safen("src_group" + d.key)})
             .attr("x", that.winpad)
             .attr("y", function (d,i){ return that.get_src_line_y(i) })
+            .on("click", function(d) { 
+                that.set_highlights("src", d.key);
+                that.redraw()
+                //set_infobox();
+            })
             .attr("transform", function (d,i){ return "translate("+ (that.winpad) +", "+that.get_src_line_y(i)+")"});
 
         srcs.selectAll(".srclines_base")
@@ -434,11 +429,6 @@ var rend = function(spec){
             //.attr("x", that.get_line_attr("#sweep").x)
             .attr("x", that.can_w)
             .attr("y", 0)
-            .on("click", function(d) { 
-                that.set_highlights("src", d.src);
-                that.redraw()
-                set_infobox();
-            })
             .attr("dy", "1em")
             .attr("dx", "0em")
             .style("font-size", function(d){return (that.get_src_line_height() * 0.8) + "px"})

@@ -24,8 +24,8 @@ var feeder = function(spec){
         that.dsts = data.map(function(e){return e.dst}).unique(); 
         //that.srcs = data.map(function(e){return e.src}).unique(); 
         that.dst_ports = that.map_dst_host_ports();
-        that.init_timers();
         //that.tick();
+        that.init_timers();
         that.update_data();
     }
 

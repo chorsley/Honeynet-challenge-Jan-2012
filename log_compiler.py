@@ -2,12 +2,14 @@ import time
 import anyjson
 import re
 import csv
+import operator
 
 log_dir = "sanitized_log"
 auth_log = log_dir + "/auth.log"
 web_access_log = log_dir + "/apache2/www-access.log"
+media_access_log = log_dir + "/apache2/www-access.log"
 
-bundle_window = 60*10
+bundle_window = 60*60
 
 log_data = []
 conn_tracker = {}
@@ -42,14 +44,19 @@ def parse_auth_log(auth_log):
 def parse_web_access_log(web_log):
     # 10.0.1.2 - - [19/Apr/2010:08:30:12 -0700] "GET /feed/ HTTP/1.1" 200 16605 "-" "Apple-PubSub/65.12.1" oxOvcAoAAQ4AAEY@W5kAAAAB 4159446
 
-    fields = ['src', 'ident', 'uname', 'date', 'req', 'status', 'bytes', 'referer', 'agent', 'recv']
-    with csv.reader(open(web_log, 'rb'), delimiter=' ', quotechar='"') as f:
+    fields = {'src':0, 'ident':1, 'uname':2, 'date':3, 'tzone':4, 'req':5, 'status':6, 'bytes':7, 'referer':8, 'agent':9, 'recv':10}
+    f = csv.reader(open(web_log, 'rb'), delimiter=' ', quotechar='"')
+    for row in f:
         conn= {}
-        for row in f:
-            conn["time"] = apache_log_time_to_epoch(row[fields['date']])
-            conn["valid"] = is_http_code_value
-            if (not bundle_if_possible(conn)):
-                yield({'src': conn["src"], 'dst': conn["dst"], 'dport': conn["dport"], 'valid': conn["valid"], "time": conn["time"], "num_conns": 1})
+        # chop off that pesky [
+        conn["time"] = apache_log_time_to_epoch((row[fields['date']])[1:])
+        conn["dst"] = "app-1" # not in the log file, assuming same box
+        conn["dport"] = 80
+        conn["valid"] = get_http_code_validity(row[fields['status']])
+        conn["src"] = row[fields['src']]
+        #conn["valid"] = is_http_code_value
+        if (not bundle_if_possible(conn)):
+            yield({'src': conn["src"], 'dst': conn["dst"], 'dport': conn["dport"], 'valid': conn["valid"], "time": conn["time"], "num_conns": 1})
 
 def bundle_if_possible(conn):
     global log_data
@@ -68,12 +75,14 @@ def bundle_if_possible(conn):
                 log_data[i]["num_conns"] += 1
                 return True
 
-def ssh_log_time_to_epoch(dtime, year):
+def get_http_code_validity(code):
+    return (int(code) >= 200 and int(code) < 400)
+
+def apache_log_time_to_epoch(dtime):
     # 19/Apr/2010:08:30:12 -0700
     pattern = "%d/%b/%Y:%H:%M:%S"
-    convdate = time.strptime(str(year) + " " + dtime, pattern)
+    convdate = time.strptime(dtime, pattern)
     etime = int(time.mktime(convdate))
-    print etime
     return etime
 
 def ssh_log_time_to_epoch(dtime, year):
@@ -83,8 +92,13 @@ def ssh_log_time_to_epoch(dtime, year):
     return etime
 
 if __name__ == "__main__":
-    #for res in parse_auth_log(auth_log):
-    #    log_data.append(res)
+    for res in parse_auth_log(auth_log):
+        log_data.append(res)
+    for res in parse_web_access_log(media_access_log):
+        log_data.append(res)
     for res in parse_web_access_log(web_access_log):
         log_data.append(res)
+
+    #log_data.sort(log_data, key=operator.attrgetter('time'))
+    log_data.sort(key=lambda row: row["time"])
     print "traffic = " + anyjson.serialize(log_data)

@@ -27,7 +27,7 @@ body {
     cursor: col-resize;
 }
 
-.connline .src-line-label {
+.connline .src-line-label .dst-box .dstportpox {
     cursor: pointer;
 }
 
