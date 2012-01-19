@@ -1,6 +1,7 @@
 body {
     background-color: darkgrey;
     color: #041BB5;
+    font-family: Helvetica, Arial;
 }
 
 .hud {
@@ -35,4 +36,7 @@ body {
     position: absolute;
     display: none;
     background: #deebfa;
+    width: 200px;
+    height: 200px;
+    opacity: 0.8;
 }

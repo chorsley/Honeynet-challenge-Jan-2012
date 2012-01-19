@@ -17,6 +17,8 @@ var rend = function(spec){
     that.conn_area_y = 150;
     that.conn_line_pad = 2;
     that.inactive_opactity = 0.3;
+    that.sweep_transition_time = 1000;
+    that.infobox = infobox();
 
     that.s = null;
 
@@ -32,7 +34,11 @@ var rend = function(spec){
                      .range([that.winpad, that.canw - that.winpad]);
     var src_trust = d3.scale.quantile()
                      .domain([0, 0.001, 0.5, 1])
-                     .range(["black", "red", "white", "green"]);
+                     .range([
+                         {color: "black", desc:"No valid connections"},
+                         {color: "red", desc: "Suspect: low % valid connections"},
+                         {color: "white", desc: "Suspicious: significant % of invalid connections" },
+                         {color: "green", desc: "Mostly valid connections"}]);
 
     var port_color_scale = d3.scale.category20();
     var host_color_scale = d3.scale.category20b();
@@ -49,6 +55,12 @@ var rend = function(spec){
                 that.set_highlights();
                 that.redraw();
            }
+           if (d3.event.target.className.baseVal != "src-line-label"){
+                that.infobox.unset();
+           }
+           else{
+              
+           }
        });
 
         that.paint_dsts(); 
@@ -62,9 +74,9 @@ var rend = function(spec){
     that.redraw = function(){
         src_y_scale.domain([0, that.feeder.get_srcs().length]);
         that.paint_srcs();
-        that.paint_conns();
+        //that.paint_conns();
         that.paint_time_hud();
-        that.paint_data_hud("Help");
+        that.paint_data_hud("");
         that.feeder.update_data();
         //setTimeout(function(){that.redraw()}, that.feeder.get_refresh_time());
     }
@@ -200,15 +212,12 @@ var rend = function(spec){
            .attr("x2", function(d){ return d })
            .call(d3.behavior.drag()
                .on("dragend", function(d){
- 
                    that.feeder.update_data();
-                   d3.selectAll(".src_group").remove();
-                   d3.selectAll(".connline").remove();
-
                    that.redraw();
                })
                .on("drag", function(d){
                    sweep_updater(d3.event.x);
+                   that.paint_time_hud();
                })
            )
            //.transition()
@@ -221,15 +230,16 @@ var rend = function(spec){
     }
 
     that.paint_conns = function(){
-        var conns = that.feeder.get_conns();
-        var conn_lines_elem = that.get_can().selectAll(".connline");
+        var conn_lines = that.get_can().selectAll(".connline")
+            .data(that.feeder.get_conns());/*,
+                  function(d) { 
+                    return (d.dport + d.src + d.time + d.dst)
+                  });*/
 
-        var conn_lines = conn_lines_elem
-            .data(conns);
-
-        conn_lines
+        var conn_lines_enter = conn_lines
             .enter()
                 .append("svg:line")
+                .attr("class", "connline")
                 .style("stroke", function(d,i){
                     if (that.cached_colors.hasOwnProperty(d.dport)){
                         return that.cached_colors[d.dport];
@@ -238,7 +248,7 @@ var rend = function(spec){
                         return port_color_scale(i);
                     }
                 })
-                .style("opacity", 1)
+                .style("opacity", 0.5)
                 .attr("stroke-width", function(d){ return d3.min([d.num_conns, 5]) })
                 .attr("stroke-dasharray", function(d){
                         if (!d.valid){
@@ -247,35 +257,28 @@ var rend = function(spec){
                         else{
                             return "none";
                         }
-                })
-                .attr("class", "connline")
-                .attr("desc", "Test")
-                .on("click", function(d){ })
-                .attr("title", "Test")
-                .attr("y1", function(d, i) { 
-                    return (that.get_group_attr(that.css_safen("#src_group"+d.src)).y);
-                })
-                .attr("y2", function(d, i) { 
-                    return (that.get_group_attr(that.css_safen("#src_group"+d.src)).y);
-                })
-                .attr("x1", function(d) {return time_scale(d.time) })
-                .attr("x2", function(d) {return time_scale(d.time) })
-                .transition()
-                    .ease("linear")
-                    .duration(500)
-                    .attr("x2", function (d) { 
-                        var attrs = that.get_port_box_attr(d.dst, d.dport)
-                        return attrs.x + attrs.width / 2
-                    })
-                    .attr("y2", function(d,i){ 
-                        var attrs = that.get_port_box_attr(d.dst, d.dport)
-                        return attrs.y + that.dst_box_height
-                    })
+                });
+
+            conn_lines
+              //.attr("y1", function(d, i) {
+              //    return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
+              //})
+              .attr("y2", function(d, i) { 
+                  var attrs = that.get_port_box_attr(d.dst, d.dport);
+                  return attrs.y + that.dst_box_height;
+                  return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
+              })
+              .attr("x2", function(d) {
+                  var attrs = that.get_port_box_attr(d.dst, d.dport);
+                  return (attrs.x + attrs.width / 2);
+                  return time_scale(d.time) 
+              });
+
+            conn_lines
+
             ;
 
-            conn_lines.exit().remove();
-
-            conn_lines_elem.transition()
+            conn_lines.transition()
                 .delay(0)
                 .style("opacity", function(d, i){
                     var pass = true;
@@ -290,36 +293,44 @@ var rend = function(spec){
                     }
 
                     if (pass){
-                        return 1;
+                        return 0.5;
                     }
                     else{
                         return that.inactive_opactity;
                     }
-               })
-            .style("stroke", function(d, i){
-                    var pass = true;
+                })
+                .style("stroke", function(d, i){
+                        var pass = true;
 
-                    for (var k in that.highlights){
-                        if (d.hasOwnProperty(k)){
-                           if (that.highlights[k] != d[k]){
-                               pass = false;
-                               break;
-                           }
+                        for (var k in that.highlights){
+                            if (d.hasOwnProperty(k)){
+                               if (that.highlights[k] != d[k]){
+                                   pass = false;
+                                   break;
+                               }
+                            }
                         }
-                    }
 
-                    if (pass){
-                        if (that.cached_colors.hasOwnProperty(d.dport)){
-                            return that.cached_colors[d.dport];
+                        if (pass){
+                            if (that.cached_colors.hasOwnProperty(d.dport)){
+                                return that.cached_colors[d.dport];
+                            }
+                            else{
+                                return port_color_scale(i);
+                            }
                         }
                         else{
-                            return port_color_scale(i);
+                            return "#999999";
                         }
-                    }
-                    else{
-                        return "#999999";
-                    }
-               })
+                   })
+                .attr("y1", function(d, i) {
+                   return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
+                })
+                .attr("x1", function(d) {return time_scale(d.time) })
+
+
+             conn_lines.exit().remove();
+
     }
 
     that.get_port_box_attr = function(dst, dport){
@@ -358,33 +369,73 @@ var rend = function(spec){
     }
 
     that.paint_srcs = function(){
+
         var nest = d3.nest()
             .key(function(d) { return d.src })
             .entries(that.feeder.get_srcs());
 
-        var srcs = that.get_can().selectAll(".src_group")
-            .data(nest);
+        var src_group = that.get_can().selectAll(".src-group")
+            .data(that.feeder.get_srcs(), function(d) { return d.src });
 
-        srcs.enter()
+        src_group.
+          exit().remove();
+
+        /// RE-ENABLE PAINT CONNS!!!
+
+        src_group.enter()
             .append("svg:g")
-            .attr("class", "src_group")
-            .attr("id", function(d){ return that.css_safen("src_group" + d.key)})
-            .attr("x", that.winpad)
-            .attr("y", function (d,i){ return that.get_src_line_y(i) })
+            .attr("class", "src-group")
+            .attr("id", function(d){ return that.css_safen("src-group" + d.src)})
             .on("click", function(d) { 
-                that.set_highlights("src", d.key);
-                that.redraw()
-                //set_infobox();
+                that.set_highlights("src", d.src);
+                that.redraw();
+                that.set_src_infobox(d);
             })
+            .attr("x", that.winpad)
+            .attr("y", function(d,i){ return that.get_src_line_y(i) })
             .attr("transform", function (d,i){ return "translate("+ (that.winpad) +", "+that.get_src_line_y(i)+")"});
 
-        srcs.selectAll(".srclines_base")
-           .data(function(d){ return d.values})
+        src_group
+          .transition()
+            .duration(that.sweep_transition_time)
+            .attr("x", (that.winpad))
+            .attr("y", function(d,i){ return that.get_src_line_y(i) })
+            .attr("transform", function (d,i){ return "translate("+ (that.winpad) +", "+that.get_src_line_y(i)+")"})
+            .call(that.set_up_conns);
+
+
+        var src_labels = src_group.selectAll(".src-line-label")
+            .data(function(d){ return [d] });
+
+        src_labels.enter()
+            .append("text")
+            .attr("class", "src-line-label")
+            .attr("text-anchor", "right");
+;
+        src_labels.exit().remove();
+
+        src_labels.attr("x", that.can_w)
+            .attr("y", 0)
+            .attr("dy", "1em")
+            .attr("dx", "0em")
+            .style("fill", function(d){
+                return src_trust(d.valid_conns / d.num_conns).color
+            })
+            .text(function(d) { return d.src })
+            .transition()
+              .duration(that.sweep_transition_time)
+              .style("font-size", function(d){ return (that.get_src_line_height() * 0.8) + "px"});
+
+        
+        var srclines_base = src_group
+           .selectAll(".srclines_base")
+           .data(function(d){return [d]})
            .enter()
            .append("svg:line")
            .attr("class", "srclines_base")
            .attr("id", function(d) { return that.css_safen("srcbase" + d.src) } )
-           .style("stroke", "#CCCCCC")
+           //.style("stroke", "#CCCCCC")
+           .style("stroke", function (d){return src_trust(d.valid_conns / d.num_conns).color })
            .attr("stroke-dasharray",  [5,5])
            .attr("x1", 0)
            .attr("y1", 0)
@@ -393,8 +444,8 @@ var rend = function(spec){
            })
            .attr("y2", 0);
  
-        srcs.selectAll(".srclines_vert_base")
-           .data(function(d){ return d.values})
+        src_group.selectAll(".srclines_vert_base")
+           .data(function(d){return [d] })
            .enter()
            .append("svg:line")
            .attr("class", "srclines_vert_base")
@@ -406,8 +457,8 @@ var rend = function(spec){
            .attr("x2", 0)
            .attr("y2", function(d, i){ return that.get_src_line_height() * 0.8 });
 
-        srcs.selectAll(".srcline")
-           .data(function(d){ return d.values })
+        src_group.selectAll(".srcline")
+           .data(function(d){ return [d] })
            .enter()
            .append("svg:line")
            .attr("class", "srcline")
@@ -421,31 +472,20 @@ var rend = function(spec){
               return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad
            })
            .attr("y2", 0);
+    }
 
-        srcs.selectAll("src-line-label")
-            .data(function(d){ return d.values})
-            .enter()
-            .append("text")
-            //.attr("x", that.get_line_attr("#sweep").x)
-            .attr("x", that.can_w)
-            .attr("y", 0)
-            .attr("dy", "1em")
-            .attr("dx", "0em")
-            .style("font-size", function(d){return (that.get_src_line_height() * 0.8) + "px"})
-            .style("fill", function(d){
-                //console.log(d.src, d.valid_conns / d.num_conns);
-                return src_trust(d.valid_conns / d.num_conns)
+    that.set_src_infobox = function(d){
+        var message = "<div>" + d.src + "</div>";
+        message += "<div>Total conns: " + d.num_conns + "</div>";
+        message += "<div>Valid conns: " + d.valid_conns + "</div>";
+        message += "<div>Valid conn rate: " + Math.round((d.valid_conns / d.num_conns) * 10000) / 100 + "%</div>";
+        color = 
+        that.infobox.set(message, d3.event.x, d3.event.y);
+    
+    }
 
-            })
-            .attr("class", "src-line-label")
-            .attr("text-anchor", "right")
-            .text(function(d) { return d.src });
-
-        srcs.exit().remove()
-            .transition()
-                .duration(1000)
-                .style("opacity", 0.5);
-
+    that.set_up_conns = function(){
+        setTimeout(that.paint_conns, that.sweep_transition_time + 100);
     }
 
     that.paint_dsts = function(){
@@ -502,34 +542,6 @@ var rend = function(spec){
     }
 
     that.paint_ports = function(dst, ports){
-        /*var circles = d3.selectAll(".dst-group")
-            .selectAll(".dportbox")
-            .data(function(d, i){ 
-                return(  
-                    d.values[0].ports.map(function (e,i,o){ 
-                        return { dst: d.values[0].dst, dport: e, num_dst_ports: d.values[0].ports.length }
-                    })
-                )
-            })
-            .enter().append("svg:circle")
-            .attr("cy", that.dst_box_height + that.port_rad + that.winpad )
-            .attr("title", "Test")
-            .attr("cx", function (d, i){ return (that.port_rad * 2 * i + that.port_rad)  })
-            .attr("id", function (d) { return that.css_safen("port" + d.dst + "_" + d.dport) })
-            .style("fill", function(d,i){
-                if (that.cached_colors.hasOwnProperty(d.dport)){
-                    return that.cached_colors[d.dport];
-                }
-                else{
-                    that.cached_colors[d.dport] = port_color_scale(Object.size(that.cached_colors));
-                    return that.cached_colors[d.dport];
-                }
-            })
-            .attr("stroke", "grey")
-            .on("click", function(d) { that.set_highlights("dport", d.dport) })
-            .text(function(d) { d.dport })
-            .attr("color", "white")
-            .attr("r", that.port_rad);*/
         var port_rects = d3.selectAll(".dst-group")
             .selectAll(".dportbox")
             .data(function(d, i){ 
