@@ -19,6 +19,7 @@ var rend = function(spec){
     that.inactive_opactity = 0.3;
     that.sweep_transition_time = 1000;
     that.infobox = infobox();
+    that.max_conn_stroke = 10;
 
     that.s = null;
 
@@ -74,11 +75,9 @@ var rend = function(spec){
     that.redraw = function(){
         src_y_scale.domain([0, that.feeder.get_srcs().length]);
         that.paint_srcs();
-        //that.paint_conns();
         that.paint_time_hud();
         that.paint_data_hud("");
         that.feeder.update_data();
-        //setTimeout(function(){that.redraw()}, that.feeder.get_refresh_time());
     }
 
 
@@ -249,7 +248,9 @@ var rend = function(spec){
                     }
                 })
                 .style("opacity", 0.5)
-                .attr("stroke-width", function(d){ return d3.min([d.num_conns, 5]) })
+                .attr("stroke-width", function(d){ 
+                  return d3.min([d.num_conns, that.max_conn_stroke]) 
+                })
                 .attr("stroke-dasharray", function(d){
                         if (!d.valid){
                             return [10,10];
