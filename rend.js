@@ -40,7 +40,7 @@ var rend = function(spec){
                          {color: "white", desc: "Suspicious: significant % of invalid connections" },
                          {color: "green", desc: "Mostly valid connections"}]);
 
-    var port_color_scale = d3.scale.category20();
+    var port_color_scale = d3.scale.category10();
     var host_color_scale = d3.scale.category20b();
 
     that.init = function(){
@@ -280,6 +280,7 @@ var rend = function(spec){
 
             conn_lines.transition()
                 .delay(0)
+                .duration(0)
                 .style("opacity", function(d, i){
                     var pass = true;
 
@@ -475,13 +476,15 @@ var rend = function(spec){
     }
 
     that.set_src_infobox = function(d){
-        var message = "<div>" + d.src + "</div>";
-        message += "<div>Total conns: " + d.num_conns + "</div>";
-        message += "<div>Valid conns: " + d.valid_conns + "</div>";
-        message += "<div>Valid conn rate: " + Math.round((d.valid_conns / d.num_conns) * 10000) / 100 + "%</div>";
-        color = 
+        var conn_ratio = d.valid_conns / d.num_conns;
+        var src_trust_level = src_trust(conn_ratio);
+        var message = "<div class='infobox_header'>";
+        message += "<div style='color:"+ src_trust_level.color +"'>" + d.src + "</div>";
+        message += "<div class='src-trust-desc'>" + src_trust_level.desc + "</div>";
+        message += "</div>"
+        message += "<div class='conn_ratio_bar_valid' style='width:"+ Math.round(conn_ratio * 10000) / 100 +"%'></div><div class='conn_ratio_bar'></div>";
+        message += "<div>" + d.valid_conns + " of " + d.num_conns + " (" + Math.round(conn_ratio * 10000) / 100 + "%) conns accepted</div>";
         that.infobox.set(message, d3.event.x, d3.event.y);
-    
     }
 
     that.set_up_conns = function(){
