@@ -704,7 +704,7 @@ var rend = function(spec){
                 return time_scale(that.feeder.get_src_times()[d.src].min) - that.conn_line_pad - that.winpad
             })
             .attr("x2", function(d) { 
-                return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad + that.winpad
+                return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad - that.winpad
             })
     }
 
