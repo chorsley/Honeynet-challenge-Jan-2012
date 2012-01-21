@@ -26,21 +26,10 @@ var rend = function(spec){
     /*var src_y_scale = d3.scale.linear()
                       .domain([0, that.feeder.get_data().map(function(e){ return e.src}).unique().length])
                       .range([that.conn_area_y, that.canh]);*/
-    var src_y_scale = d3.scale.linear()
-                      .domain([0, that.feeder.get_srcs().length])
-                      .range([that.conn_area_y, that.canh]);
 
-    var time_scale = d3.scale.linear()
-                     .domain([that.feeder.get_sweep_start_time(), that.feeder.get_sweep_end_time()])
-                     .range([that.winpad, that.canw - that.winpad]);
-    var src_trust = d3.scale.quantile()
-                     .domain([0, 0.001, 0.5, 1])
-                     .range([
-                         {color: "black", desc:"No valid connections"},
-                         {color: "red", desc: "Suspect: low % valid connections"},
-                         {color: "white", desc: "Suspicious: significant % of invalid connections" },
-                         {color: "green", desc: "Mostly valid connections"}]);
-
+    var src_y_scale;
+    var time_scale;
+    var src_trust;
     var port_color_scale = d3.scale.category10();
     var host_color_scale = d3.scale.category20b();
 
@@ -65,6 +54,7 @@ var rend = function(spec){
            }
        });
 
+        that.set_scales();
         that.paint_dsts(); 
         that.paint_ports();
         that.paint_time_hud();
@@ -78,7 +68,27 @@ var rend = function(spec){
         that.paint_srcs();
         that.paint_time_hud();
         that.paint_data_hud("");
+        //that.paint_start_sweep();
+        //that.paint_end_sweep();
         that.feeder.update_data();
+    }
+
+    that.set_scales = function(){
+        src_y_scale = d3.scale.linear()
+                          .domain([0, that.feeder.get_srcs().length])
+                          .range([that.conn_area_y, that.canh]);
+
+        time_scale = d3.scale.linear()
+                         .domain([that.feeder.get_sweep_start_time(), that.feeder.get_sweep_end_time()])
+                         .range([that.winpad, that.canw - that.winpad]);
+        src_trust = d3.scale.quantile()
+                         .domain([0, 0.001, 0.5, 1])
+                         .range([
+                             {color: "black", desc:"No valid connections"},
+                             {color: "red", desc: "Suspect: low % valid connections"},
+                             {color: "white", desc: "Suspicious: significant % of invalid connections" },
+                             {color: "green", desc: "Mostly valid connections"}]);
+
     }
 
 
@@ -179,9 +189,20 @@ var rend = function(spec){
        sweep = that.paint_sweep("end", time, that.update_end_sweep);
        
        sweep
-           .attr("x1", time_scale(that.feeder.get_sweep_end_time()))
-           .attr("x2", time_scale(that.feeder.get_sweep_end_time()));
+          .attr("x1", time_scale(that.feeder.get_sweep_end_time()))
+          .attr("x2", time_scale(that.feeder.get_sweep_end_time()));
+    }
 
+    that.reset_end_sweep = function(){
+        var time = that.feeder.get_sweep_end_time();
+
+        sweep = that.paint_sweep("end", time, that.update_end_sweep);
+       
+        sweep
+          .transition()
+            .duration(that.sweep_transition_time)
+            .attr("x1", time_scale(that.feeder.get_sweep_end_time()))
+            .attr("x2", time_scale(that.feeder.get_sweep_end_time()));       
     }
 
     that.update_end_sweep = function(x){
@@ -205,7 +226,18 @@ var rend = function(spec){
        sweep
            .attr("x1", time_scale(that.feeder.get_sweep_start_time()))
            .attr("x2", time_scale(that.feeder.get_sweep_start_time()));
+    }
 
+    that.reset_start_sweep = function(){
+        var time = that.feeder.get_sweep_start_time();
+
+        sweep = that.paint_sweep("start", time, that.update_start_sweep);
+       
+        sweep
+          .transition()
+            .duration(that.sweep_transition_time)
+            .attr("x1", time_scale(that.feeder.get_sweep_start_time()))
+            .attr("x2", time_scale(that.feeder.get_sweep_start_time()));       
     }
 
     that.update_start_sweep = function(x){
@@ -242,6 +274,9 @@ var rend = function(spec){
            .call(d3.behavior.drag()
                .on("dragend", function(d){
                    that.feeder.update_data();
+                   that.set_scales();
+                   that.reset_start_sweep();
+                   that.reset_end_sweep();
                    that.redraw();
                })
                .on("drag", function(d){
@@ -652,21 +687,32 @@ var rend = function(spec){
            .attr("x2", 0)
            .attr("y2", function(d, i){ return that.get_src_line_height() * 0.8 });
 
-        src_group.selectAll(".srcline")
-           .data(function(d){ return [d] })
-           .enter()
-           .append("svg:line")
-           .attr("class", "srcline")
-           .attr("id", function(d) { return that.css_safen("src" + d.src) } )
-           .style("stroke", "black")
-           .attr("x1", function(d){ 
-              return time_scale(that.feeder.get_src_times()[d.src].min) - that.conn_line_pad
-           })
-           .attr("y1", 0)
-           .attr("x2", function(d) { 
-              return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad
-           })
-           .attr("y2", 0);
+        var srclines = src_group.selectAll(".srcline")
+           .data(function(d){ return [d] });
+
+        srclines.enter()
+             .append("svg:line")
+             .attr("class", "srcline")
+             .attr("id", function(d) { return that.css_safen("src" + d.src) } )
+             .style("stroke", "black")
+             .attr("x1", function(d){ 
+                return time_scale(that.feeder.get_src_times()[d.src].min) - that.conn_line_pad
+             })
+             .attr("y1", 0)
+             .attr("x2", function(d) { 
+                return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad
+             })
+             .attr("y2", 0);
+          
+        srclines.
+          transition()
+            .duration(that.sweep_transition_time)
+            .attr("x1", function(d){ 
+                return time_scale(that.feeder.get_src_times()[d.src].min) - that.conn_line_pad
+            })
+            .attr("x2", function(d) { 
+                return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad
+            })
     }
 
     that.set_src_infobox = function(d){

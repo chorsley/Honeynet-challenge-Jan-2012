@@ -12,11 +12,12 @@ var feeder = function(spec){
     that.src_times = {};
     that.dst_ports = [];
     that.conns_colors = [];
+    that.global_time_start;
+    that.global_time_end;
     that.time_start;
     that.time_end;
     that.sweep_start_time;
     that.sweep_end_time;
-    that.time = spec.time || 0;
     that.running = true;
     
     that.init = function(){
@@ -78,10 +79,6 @@ var feeder = function(spec){
         return that.dst_ports;
     }
 
-    that.get_time = function(){
-        return that.time;
-    }
-
     that.get_refresh_time = function(){
         return that.slottime;
     }
@@ -102,20 +99,6 @@ var feeder = function(spec){
         that.conns = [];
         that.conns = that.find_events_between(that.sweep_start_time, that.sweep_end_time);
         //that.init_timers();
-    }
-
-    that.tick = function(){
-    /*    that.conns = [];
-
-        if (that.time < that.sweep_end_time){
-            that.time = that.time + ((that.time_end - that.time_start) / (that.runtime / that.slottime));
-            
-            that.conns = that.find_events_between(that.sweep_start_time, that.sweep_end_time);
-            setTimeout(function(){that.tick()}, that.slottime); 
-        }
-        else{
-            that.running = false;
-        }*/
     }
 
     that.find_events_between = function(start_time, end_time){
@@ -145,7 +128,7 @@ var feeder = function(spec){
                     else{
                         that.srcs[pos]["invalid_conns"] += data[i].num_conns;
                     }
-                } 
+                }
             }
             return found_events;
     }
@@ -173,6 +156,7 @@ var feeder = function(spec){
             if (data[d].time > max){
                 max = data[d].time;
             }
+
             if (!that.src_times.hasOwnProperty(data[d].src)){
                 that.src_times[data[d].src] = {
                     min: data[d].time,
@@ -189,7 +173,9 @@ var feeder = function(spec){
                 }
             }
         }
-        that.time = min;
+
+        that.global_time_start = min;
+        that.global_time_end = max;
         that.time_start = min;
         that.time_end = max;
         that.sweep_start_time = min;
