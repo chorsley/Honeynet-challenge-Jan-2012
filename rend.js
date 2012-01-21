@@ -14,12 +14,13 @@ var rend = function(spec){
     that.cached_colors = {};
     that.highlights = {};
     that.status_msg;
-    that.conn_area_y = 150;
+    that.conn_area_y = 100;
     that.conn_line_pad = 2;
     that.inactive_opactity = 0.3;
     that.sweep_transition_time = 1000;
     that.infobox = infobox();
     that.max_conn_stroke = 5;
+    that.inactive_color = "#999999";
 
     that.s = null;
 
@@ -68,8 +69,7 @@ var rend = function(spec){
         that.paint_srcs();
         that.paint_time_hud();
         that.paint_data_hud("");
-        //that.paint_start_sweep();
-        //that.paint_end_sweep();
+        that.paint_conn_circs();
         that.feeder.update_data();
     }
 
@@ -80,11 +80,11 @@ var rend = function(spec){
 
         time_scale = d3.scale.linear()
                          .domain([that.feeder.get_sweep_start_time(), that.feeder.get_sweep_end_time()])
-                         .range([that.winpad, that.canw - that.winpad]);
+                         .range([that.winpad, that.canw]);
         src_trust = d3.scale.quantile()
                          .domain([0, 0.001, 0.5, 1])
                          .range([
-                             {color: "black", desc:"No valid connections"},
+                             {color: "#666666", desc:"No valid connections"},
                              {color: "red", desc: "Suspect: low % valid connections"},
                              {color: "white", desc: "Suspicious: significant % of invalid connections" },
                              {color: "green", desc: "Mostly valid connections"}]);
@@ -332,12 +332,12 @@ var rend = function(spec){
               .attr("y2", function(d, i) { 
                   var attrs = that.get_port_box_attr(d.dst, d.dport);
                   return attrs.y + that.dst_box_height;
-                  return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
+                  //return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
               })
               .attr("x2", function(d) {
                   var attrs = that.get_port_box_attr(d.dst, d.dport);
                   return (attrs.x + attrs.width / 2);
-                  return time_scale(d.time) 
+                  //return time_scale(d.time) 
               });
 
             conn_lines
@@ -387,11 +387,12 @@ var rend = function(spec){
                             }
                         }
                         else{
-                            return "#999999";
+                            return that.inactive_color;
                         }
                    })
                 .attr("y1", function(d, i) {
-                   return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
+                   return src_y_scale(that.feeder.get_srcs().indexOfObj("src", d.src));
+                   //return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
                 })
                 .attr("x1", function(d) {return time_scale(d.time) })
 
@@ -403,10 +404,7 @@ var rend = function(spec){
 
     that.paint_conn_circs = function(){
         var conn_lines = that.get_can().selectAll(".conncirc")
-            .data(that.feeder.get_conns());/*,
-                  function(d) { 
-                    return (d.dport + d.src + d.time + d.dst)
-                  });*/
+            .data(that.feeder.get_conns());
 
         var conn_lines_enter = conn_lines
             .enter()
@@ -442,33 +440,19 @@ var rend = function(spec){
                 .style("opacity", 0.5)
                 .attr("stroke-width", function(d){ 
                   if (!d.valid){
-                    //return d3.min([d.num_conns, that.max_conn_stroke])
                     return 1;
                   } 
                 })
-                /*.attr("stroke-dasharray", function(d){
-                        if (!d.valid){
-                            return [10,10];
-                        }
-                        else{
-                            return "none";
-                        }
-                });*/
 
             conn_lines
-              //.attr("y1", function(d, i) {
-              //    return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
-              //})
+              .transition()
+                .duration(that.sweep_transition_time)
                 .attr("cy", function(d, i) {
-                   return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
+                   return src_y_scale(that.feeder.get_srcs().indexOfObj("src", d.src));
                 })
                 .attr("cx", function(d) {
                   return time_scale(d.time)
                 })
-                //.attr("width", function(d) { 
-                //  return d3.min([(time_scale(d.last_time) - time_scale(d.time)), 2]) 
-                //})
-                //.attr("height", that.get_src_line_height())
                 .attr("r",  function(d) {
                   return d3.min([d.num_conns, that.get_src_line_height() / 2])
                 });
@@ -539,25 +523,26 @@ var rend = function(spec){
         }
       }
       else{
-        return "#999999";
+        return that.inactive_color;
       }
-
     }
 
     that.set_conn_infobox = function(d){
-        console.log(d);
-        
         var start_date = new Date();
         start_date.setTime(d.time * 1000);
 
         var end_date = new Date();
         end_date.setTime(d.last_time * 1000);
 
+        var valid_label = d.valid ? "valid" : "invalid";
+
         var message = "<div class='infobox_header'>";
-        message += "<div style='color:'>" + d.src + "</div>";
+        message += "<div style='color:'>" + d.src + " &rarr; ";
+        message += d.dst +":<span style='color:white;background:"+ that.cached_colors[d.dport] +"'>";
+        message += d.dport + "</span></div>";
         message += "</div>";
-        message += "<div>" + d.num_conns + " connections</div>";
-        message += "<div>" + that.format_date(start_date, 0) + " -</div>";
+        message += "<div>" + d.num_conns + " " + valid_label + " connections</div>";
+        message += "<div>" + that.format_date(start_date, 0) + " &rarr;</div>";
         message += "<div>" + that.format_date(end_date, 0) + "</div>";
         that.infobox.set(message, d3.event.x, d3.event.y);
     }
@@ -609,8 +594,6 @@ var rend = function(spec){
         src_group.
           exit().remove();
 
-        /// RE-ENABLE PAINT CONNS!!!
-
         src_group.enter()
             .append("svg:g")
             .attr("class", "src-group")
@@ -630,7 +613,7 @@ var rend = function(spec){
             .attr("x", (that.winpad))
             .attr("y", function(d,i){ return that.get_src_line_y(i) })
             .attr("transform", function (d,i){ return "translate("+ (that.winpad) +", "+that.get_src_line_y(i)+")"})
-            .call(that.set_up_conns);
+            //.call(that.set_up_conns);
 
 
         var src_labels = src_group.selectAll(".src-line-label")
@@ -647,8 +630,9 @@ var rend = function(spec){
             .attr("y", 0)
             .attr("dy", "1em")
             .attr("dx", "0em")
-            .style("fill", function(d){
-                return src_trust(d.valid_conns / d.num_conns).color
+            .style("fill", function(d, i){
+                //return src_trust(d.valid_conns / d.num_conns).color
+                return that.set_src_label_anim_color(d, i);
             })
             .text(function(d) { return d.src })
             .transition()
@@ -658,8 +642,9 @@ var rend = function(spec){
         
         var srclines_base = src_group
            .selectAll(".srclines_base")
-           .data(function(d){return [d]})
-           .enter()
+           .data(function(d){return [d]});
+
+        srclines_base.enter()
            .append("svg:line")
            .attr("class", "srclines_base")
            .attr("id", function(d) { return that.css_safen("srcbase" + d.src) } )
@@ -673,6 +658,13 @@ var rend = function(spec){
               return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad
            })
            .attr("y2", 0);
+
+        srclines_base
+          .transition()
+              .duration(that.sweep_transition_time)
+              .attr("x2", function(d) { 
+                 return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad
+              })
  
         src_group.selectAll(".srclines_vert_base")
            .data(function(d){return [d] })
@@ -695,8 +687,9 @@ var rend = function(spec){
              .attr("class", "srcline")
              .attr("id", function(d) { return that.css_safen("src" + d.src) } )
              .style("stroke", "black")
+             .style("opacity", "0.6")
              .attr("x1", function(d){ 
-                return time_scale(that.feeder.get_src_times()[d.src].min) - that.conn_line_pad
+                return time_scale(that.feeder.get_src_times()[d.src].min) - that.conn_line_pad - that.winpad
              })
              .attr("y1", 0)
              .attr("x2", function(d) { 
@@ -708,12 +701,28 @@ var rend = function(spec){
           transition()
             .duration(that.sweep_transition_time)
             .attr("x1", function(d){ 
-                return time_scale(that.feeder.get_src_times()[d.src].min) - that.conn_line_pad
+                return time_scale(that.feeder.get_src_times()[d.src].min) - that.conn_line_pad - that.winpad
             })
             .attr("x2", function(d) { 
-                return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad
+                return time_scale(that.feeder.get_src_times()[d.src].max) + that.conn_line_pad + that.winpad
             })
     }
+
+    that.set_src_label_anim_color = function(d, i){
+      if (that.highlights.hasOwnProperty('src')){
+          if (d.src == that.highlights['src']){
+             return src_trust(d.valid_conns / d.num_conns).color;
+          }
+          else{
+            return that.inactive_color;
+          }
+      }
+      else{
+            return src_trust(d.valid_conns / d.num_conns).color;
+      }
+    }
+
+
 
     that.set_src_infobox = function(d){
         var conn_ratio = d.valid_conns / d.num_conns;
@@ -727,9 +736,9 @@ var rend = function(spec){
         that.infobox.set(message, d3.event.x, d3.event.y);
     }
 
-    that.set_up_conns = function(){
-        setTimeout(that.paint_conn_circs, that.sweep_transition_time + 100);
-    }
+    //that.set_up_conns = function(){
+    //    setTimeout(that.paint_conn_circs, that.sweep_transition_time + 100);
+    //}
 
     that.paint_dsts = function(){
         var host_width = that.get_host_box_width();
@@ -786,7 +795,7 @@ var rend = function(spec){
 
     that.paint_ports = function(dst, ports){
         var port_rects = d3.selectAll(".dst-group")
-            .selectAll(".dportbox")
+            .selectAll(".dst-port-box")
             .data(function(d, i){ 
                 return(  
                     d.values[0].ports.map(function (e,i,o){ 
@@ -797,13 +806,13 @@ var rend = function(spec){
 
         port_rects.enter().append("svg:rect")
             .attr("x", function (d, i){ 
-                //console.log(that.get_host_box_width(), d.num_dst_ports)
                 return (that.get_host_box_width() / d.num_dst_ports) * i  
             })
             .attr("y", that.dst_box_height + that.winpad )
             .attr("width", function (d, i){ return (that.get_host_box_width() / d.num_dst_ports) })
             .attr("height", that.dst_box_height)
             .attr("title", "Test")
+            .attr("class", "dst-port-box")
             .attr("id", function (d) { return that.css_safen("port" + d.dst + "_" + d.dport) })
             .style("fill", function(d,i){
                 if (that.cached_colors.hasOwnProperty(d.dport)){
@@ -824,7 +833,6 @@ var rend = function(spec){
         port_rects.enter()
             .append("text")
             .attr("x", function (d, i){ 
-                //console.log(that.get_host_box_width(), d.num_dst_ports)
                 return (that.get_host_box_width() / d.num_dst_ports) * i +  that.get_host_box_width() / d.num_dst_ports * 0.5
             })
             .attr("y", that.dst_box_height * 1.5 + that.winpad )
@@ -867,4 +875,13 @@ padNum = function(pad_str, pad_lim, pad_with){
     for(i = 0; i < pad_length; i++)
         pad_str = pad_with + String(pad_str);
     return pad_str;
+}
+
+Array.prototype.indexOfObj = function(prop, match){
+    for (var i = 0; i < this.length; i++){
+        if (this[i][prop] === match){
+            return i;
+        }
+    }
+    return -1;
 }
