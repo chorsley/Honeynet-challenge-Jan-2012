@@ -19,7 +19,7 @@ var rend = function(spec){
     that.inactive_opactity = 0.3;
     that.sweep_transition_time = 1000;
     that.infobox = infobox();
-    that.max_conn_stroke = 10;
+    that.max_conn_stroke = 5;
 
     that.s = null;
 
@@ -56,7 +56,8 @@ var rend = function(spec){
                 that.set_highlights();
                 that.redraw();
            }
-           if (d3.event.target.className.baseVal != "src-line-label"){
+           if (d3.event.target.className.baseVal != "src-line-label"
+               && d3.event.target.className.baseVal != "conncirc"){
                 that.infobox.unset();
            }
            else{
@@ -119,7 +120,6 @@ var rend = function(spec){
             .attr("y", that.winpad)
             .attr("dy", "0.3em")
             .attr("text-anchor", "left");
-            //.text(function(d){ return d });
 
         time_elem.transition()
             .text(function(d){ 
@@ -127,8 +127,38 @@ var rend = function(spec){
                 start_date.setTime(that.feeder.get_sweep_start_time() * 1000); 
                 var end_date = new Date(); 
                 end_date.setTime(that.feeder.get_sweep_end_time() * 1000); 
-                return (start_date + " - " + end_date);
+                return (that.format_date(start_date, 0) + " - " + that.get_minimal_date_diff(start_date, end_date));
             });
+    }
+
+    that.get_minimal_date_diff = function(date1, date2){
+      // date 1 should be earlier than date 2
+      var date_arr_1 = [date1.getFullYear(), date1.getMonth(), date1.getDate(), date1.getHours(), date1.getMinutes(), date1.getSeconds()];
+      var date_arr_2 = [date2.getFullYear(), date2.getMonth(), date2.getDate(), date2.getHours(), date2.getMinutes(), date2.getSeconds()];
+
+      var match_pos = 0;
+
+      for (var i = 0; i < date_arr_1.length; i++){
+          if (date_arr_1[i] == date_arr_2[i]){
+              match_pos = i;
+          }
+          else{
+              break;
+          }
+      }
+      return this.format_date(date2, match_pos + 1);
+    }
+
+    that.format_date = function(date, use_from){
+        var out = "";
+        var seps = ['/', '/', ' ', ':', ':', ''];
+        var date_arr = [date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), padNum(date.getMinutes(), 2, 0), padNum(date.getSeconds(), 2, 0)];
+
+        for (var i = use_from; i < date_arr.length; i++){
+            out += date_arr[i] + seps[i];
+        }
+
+        return out;
     }
 
     that.paint_data_hud = function(t){
@@ -335,6 +365,168 @@ var rend = function(spec){
 
     }
 
+
+    that.paint_conn_circs = function(){
+        var conn_lines = that.get_can().selectAll(".conncirc")
+            .data(that.feeder.get_conns());/*,
+                  function(d) { 
+                    return (d.dport + d.src + d.time + d.dst)
+                  });*/
+
+        var conn_lines_enter = conn_lines
+            .enter()
+                .append("svg:circle")
+                .attr("class", "conncirc")
+                .on("click", function(d, i){
+                    that.set_conn_infobox(d);
+                })
+                .style("stroke", function(d,i){
+                    if (!d.valid){
+                        if (that.cached_colors.hasOwnProperty(d.dport)){
+                            return that.cached_colors[d.dport];
+                        }
+                        else{
+                            return port_color_scale(i);
+                        }
+                    }
+                })
+                .style("fill", function(d,i){
+                    if (d.valid){
+                        if (that.cached_colors.hasOwnProperty(d.dport)){
+                            return that.cached_colors[d.dport];
+                        }
+                        else{
+                            return port_color_scale(i);
+                        }
+                    }
+                    else{
+                        return "none";
+                    }
+                })
+                .style("pointer-events", "visible")
+                .style("opacity", 0.5)
+                .attr("stroke-width", function(d){ 
+                  if (!d.valid){
+                    //return d3.min([d.num_conns, that.max_conn_stroke])
+                    return 1;
+                  } 
+                })
+                /*.attr("stroke-dasharray", function(d){
+                        if (!d.valid){
+                            return [10,10];
+                        }
+                        else{
+                            return "none";
+                        }
+                });*/
+
+            conn_lines
+              //.attr("y1", function(d, i) {
+              //    return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
+              //})
+                .attr("cy", function(d, i) {
+                   return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
+                })
+                .attr("cx", function(d) {
+                  return time_scale(d.time)
+                })
+                //.attr("width", function(d) { 
+                //  return d3.min([(time_scale(d.last_time) - time_scale(d.time)), 2]) 
+                //})
+                //.attr("height", that.get_src_line_height())
+                .attr("r",  function(d) {
+                  return d3.min([d.num_conns, that.get_src_line_height() / 2])
+                });
+
+
+            conn_lines.transition()
+                .delay(0)
+                .duration(0)
+                .style("opacity", function(d, i){
+                    var pass = true;
+
+                    for (var k in that.highlights){
+                        if (d.hasOwnProperty(k)){
+                           if (that.highlights[k] != d[k]){
+                               pass = false;
+                               break;
+                           }
+                        }
+                    }
+
+                    if (pass){
+                        return 0.5;
+                    }
+                    else{
+                        return that.inactive_opactity;
+                    }
+                })
+                .style("stroke", function(d, i){
+                    return that.set_circ_anim_color(d, i);
+                })
+                .style("fill", function(d, i){
+                    if (d.valid){
+                      return that.set_circ_anim_color(d, i);
+                    }
+                    else{
+                      return "none";
+                    }
+                })
+   
+                .attr("y1", function(d, i) {
+                   return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
+                })
+                .attr("x1", function(d) {return time_scale(d.time) })
+
+
+             conn_lines.exit().remove();
+
+    }
+
+    that.set_circ_anim_color = function(d, i){
+      var pass = true;
+
+      for (var k in that.highlights){
+        if (d.hasOwnProperty(k)){
+           if (that.highlights[k] != d[k]){
+               pass = false;
+               break;
+           }
+        }
+      }
+
+      if (pass){
+        if (that.cached_colors.hasOwnProperty(d.dport)){
+            return that.cached_colors[d.dport];
+        }
+        else{
+            return port_color_scale(i);
+        }
+      }
+      else{
+        return "#999999";
+      }
+
+    }
+
+    that.set_conn_infobox = function(d){
+        console.log(d);
+        
+        var start_date = new Date();
+        start_date.setTime(d.time * 1000);
+
+        var end_date = new Date();
+        end_date.setTime(d.last_time * 1000);
+
+        var message = "<div class='infobox_header'>";
+        message += "<div style='color:'>" + d.src + "</div>";
+        message += "</div>";
+        message += "<div>" + d.num_conns + " connections</div>";
+        message += "<div>" + that.format_date(start_date, 0) + " -</div>";
+        message += "<div>" + that.format_date(end_date, 0) + "</div>";
+        that.infobox.set(message, d3.event.x, d3.event.y);
+    }
+
     that.get_port_box_attr = function(dst, dport){
         // need to translate back from the svg group co-ords:
         // is there a nicer way to do this?
@@ -439,6 +631,7 @@ var rend = function(spec){
            //.style("stroke", "#CCCCCC")
            .style("stroke", function (d){return src_trust(d.valid_conns / d.num_conns).color })
            .attr("stroke-dasharray",  [5,5])
+           .style("opacity", 0.3)
            .attr("x1", 0)
            .attr("y1", 0)
            .attr("x2", function(d) { 
@@ -489,7 +682,7 @@ var rend = function(spec){
     }
 
     that.set_up_conns = function(){
-        setTimeout(that.paint_conns, that.sweep_transition_time + 100);
+        setTimeout(that.paint_conn_circs, that.sweep_transition_time + 100);
     }
 
     that.paint_dsts = function(){
@@ -622,3 +815,10 @@ Object.size = function(obj) {
     }
     return size;
 };
+
+padNum = function(pad_str, pad_lim, pad_with){
+    var pad_length = pad_lim - String(pad_str).length;
+    for(i = 0; i < pad_length; i++)
+        pad_str = pad_with + String(pad_str);
+    return pad_str;
+}

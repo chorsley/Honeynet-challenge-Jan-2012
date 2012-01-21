@@ -32,6 +32,10 @@ body {
     cursor: pointer;
 }
 
+.conncirc {
+    cursor: pointer;
+}
+
 #infobox {
     border: 1px solid black;
     position: absolute;

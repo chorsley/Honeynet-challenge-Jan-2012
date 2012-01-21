@@ -39,7 +39,13 @@ def parse_auth_log(auth_log):
                         #print "%s ssh login for %s from %s\n" % (result, user, remoteip)
                         conn["valid"] = False if conn["result"] == "Failed" else True
                         if (not bundle_if_possible(conn)):
-                            yield({'src': conn["src"], 'dst': conn["dst"], 'dport': conn["dport"], 'valid': conn["valid"], "time": conn["time"], "num_conns": 1})
+                            yield({'src': conn["src"], \
+                                   'dst': conn["dst"], \
+                                   'dport': conn["dport"], \
+                                   'valid': conn["valid"], \
+                                   'time': conn["time"], \
+                                   'last_time': conn["time"], \
+                                   'num_conns': 1})
 
 def parse_web_access_log(web_log):
     # 10.0.1.2 - - [19/Apr/2010:08:30:12 -0700] "GET /feed/ HTTP/1.1" 200 16605 "-" "Apple-PubSub/65.12.1" oxOvcAoAAQ4AAEY@W5kAAAAB 4159446
@@ -56,7 +62,13 @@ def parse_web_access_log(web_log):
         conn["src"] = row[fields['src']]
         #conn["valid"] = is_http_code_value
         if (not bundle_if_possible(conn)):
-            yield({'src': conn["src"], 'dst': conn["dst"], 'dport': conn["dport"], 'valid': conn["valid"], "time": conn["time"], "num_conns": 1})
+            yield({'src': conn["src"], \
+                   'dst': conn["dst"], \
+                   'dport': conn["dport"], \
+                   'valid': conn["valid"], \
+                   'time': conn["time"], \
+                   'last_time': conn["time"], \
+                   'num_conns': 1})
 
 def bundle_if_possible(conn):
     global log_data
@@ -72,6 +84,7 @@ def bundle_if_possible(conn):
                 conn["dst"] == log_data[i]["dst"] and 
                 conn["dport"] == log_data[i]["dport"] and
                 conn["valid"] == log_data[i]["valid"]):
+                log_data[i]["last_time"] = conn["time"]
                 log_data[i]["num_conns"] += 1
                 return True
 
