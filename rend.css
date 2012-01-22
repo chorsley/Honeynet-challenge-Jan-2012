@@ -2,6 +2,7 @@ body {
     background-color: darkgrey;
     color: #041BB5;
     font-family: Helvetica, Arial;
+    overflow: hidden;
 }
 
 .hud {
