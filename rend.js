@@ -144,13 +144,13 @@ var rend = function(spec){
     }
 
     that.get_host_box_width = function(n){
-        return (that.canw - that.winpad * 2) / (that.feeder.get_dsts().length);
+        return (that.canw) / (that.feeder.get_dsts().length);
     }
   
     that.paint_time_hud = function(){
 
-        that.paint_time("starttime", that.feeder.get_sweep_start_time(), that.winpad, "left");
-        that.paint_time("endtime", that.feeder.get_sweep_end_time(), that.canw - that.winpad, "end");
+        that.paint_time("starttime", that.feeder.get_sweep_start_time(), that.winpad + that.src_line_left_pad, "left");
+        that.paint_time("endtime", that.feeder.get_sweep_end_time(), that.canw, "end");
     }
 
     that.paint_time = function(tname, time, xpos, anchor){
@@ -325,7 +325,7 @@ var rend = function(spec){
     that.update_start_sweep = function(x){
         //that.feeder.set_sweep_start_time(time_scale.invert(x));
         var min_bound = d3.max([time_scale.invert(x), 
-        time_scale.invert(that.winpad)]);
+        time_scale.invert(that.winpad + that.src_line_left_pad)]);
 
         that.feeder.set_sweep_start_time(
             d3.min([
@@ -348,7 +348,7 @@ var rend = function(spec){
            .attr("id", "sweep" + sweep_type)
            .style("stroke", "gold")
            .style("stroke-width", 3)
-           .attr("y1", that.conn_area_y, 20)
+           .attr("y1", that.conn_area_y - 10)
            .attr("y2", that.canh)
            .attr("x1", function(d){ return d })
            .attr("x2", function(d){ return d })
@@ -822,7 +822,7 @@ var rend = function(spec){
             .attr("id", function (d) { return that.css_safen("dst-group" + d.key)})
             .attr("class", "dst-group")
             .attr("fill", function(d,i){ return port_color_scale(i)})
-            .attr("x", function (d,i){ return (that.winpad + host_width * i) })
+            .attr("x", function (d,i){ return (host_width * i) })
             .attr("y", function (d,i){ return that.winpad })
             .attr("transform", function (d,i){ return "translate("+ (that.winpad + host_width * i) +", "+that.winpad+")"});
         
