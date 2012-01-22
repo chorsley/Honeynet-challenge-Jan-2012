@@ -13,11 +13,11 @@
     <script type="text/javascript" src="traffic.json"></script>
 </head>
 <body>
-    <div id="infobox">Test</div>
+    <div id="infobox"></div>
 
-    <div id="viz"></div>
+    <div class="zoomer"><a href="#" onclick="rend.rollback_zoom_time()">Zoom out</a></div>
+    <div style="float: left" id="viz"></div>
     <script type="text/javascript">
-    $("body").tooltip();
 
     var attacks = [
         { src: "192.168.0.1", dst: "172.168.1.2", dport: "45", valid: true, time: 1325666240 , num_conns: 1},

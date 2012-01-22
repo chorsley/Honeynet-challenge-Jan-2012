@@ -7,7 +7,7 @@ var infobox = function(){
 	    that.infobox.css("left", that.place_x(x));
 	    that.infobox.css("top", that.place_y(y));
 	    that.infobox.html(content);
-	    that.infobox.show();
+	    that.infobox.show("fast");
 	}
 
 	that.unset = function(){

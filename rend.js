@@ -21,6 +21,7 @@ var rend = function(spec){
     that.infobox = infobox();
     that.max_conn_stroke = 5;
     that.inactive_color = "#999999";
+    that.zoom_levels = [];
 
     that.s = null;
 
@@ -53,8 +54,13 @@ var rend = function(spec){
            else{
               
            }
-       });
+        })
+        .on("activate", function(d, i){
+            console.log(d);
+            console.log(d3.event); 
+        });
 
+        that.intro_infobox();
         that.set_scales();
         that.paint_dsts(); 
         that.paint_ports();
@@ -86,11 +92,21 @@ var rend = function(spec){
                          .range([
                              {color: "#666666", desc:"No valid connections"},
                              {color: "red", desc: "Suspect: low % valid connections"},
-                             {color: "white", desc: "Suspicious: significant % of invalid connections" },
+                             {color: "darkorange", desc: "Suspicious: significant % of invalid connections" },
                              {color: "green", desc: "Mostly valid connections"}]);
 
     }
 
+    that.intro_infobox = function(){
+        var message = "<div><strong>Welcome to Log Cluster Zoomer!</strong></div>";
+        message += "<div><em>Best experienced in Chrome or Safari (for now).</div></em>"
+        message += "<li>Top: servers and ports receiving data.</li>";
+        message += "<li>Left: connecting IPs.</li>";
+        message += "<li>Left &rarr; right: time.</li>";
+        message += "<li>Drag the yellow bars to zoom in.</li>"
+
+        that.infobox.set(message, 50, 100);
+    }
 
     that.set_highlights = function(type, value){
         for (var k in that.highlights){
@@ -169,6 +185,22 @@ var rend = function(spec){
         }
 
         return out;
+    }
+
+    that.stash_zoom_time = function(time1, time2){
+        that.zoom_levels.push([that.feeder.get_sweep_start_time(),
+                               that.feeder.get_sweep_end_time()]);
+    }
+
+    that.rollback_zoom_time = function(){
+        if (that.zoom_levels.length > 0){
+          times = that.zoom_levels.pop();
+
+          that.feeder.set_sweep_start_time(times[0]);
+          that.feeder.set_sweep_end_time(times[1]);
+
+          that.reset_scale_and_sweeps();
+        }
     }
 
     that.paint_data_hud = function(t){
@@ -264,20 +296,18 @@ var rend = function(spec){
            .append("svg:line")
            .attr("class", "sweep") 
            .attr("id", "sweep" + sweep_type)
-           .style("stroke", "#666666")
+           .style("stroke", "gold")
            .style("stroke-width", 3)
-           .attr("tooltip", "bing")
-           .attr("y1", that.conn_area_y - 100)
+           .attr("y1", that.conn_area_y, 20)
            .attr("y2", that.canh)
            .attr("x1", function(d){ return d })
            .attr("x2", function(d){ return d })
            .call(d3.behavior.drag()
+               .on("dragstart", function(d){
+                  that.stash_zoom_time();
+               })
                .on("dragend", function(d){
-                   that.feeder.update_data();
-                   that.set_scales();
-                   that.reset_start_sweep();
-                   that.reset_end_sweep();
-                   that.redraw();
+                   that.reset_scale_and_sweeps();
                })
                .on("drag", function(d){
                    sweep_updater(d3.event.x);
@@ -291,6 +321,15 @@ var rend = function(spec){
            //    .attr("x2", time_scale(that.feeder.get_sweep_end_time()));
 
            return sweep;
+    }
+
+    that.reset_scale_and_sweeps = function(){
+        that.feeder.update_data();
+        that.set_scales();
+        that.reset_start_sweep();
+        that.reset_end_sweep();
+        that.paint_time_hud();
+        that.redraw();
     }
 
     that.paint_conns = function(){
@@ -598,11 +637,6 @@ var rend = function(spec){
             .append("svg:g")
             .attr("class", "src-group")
             .attr("id", function(d){ return that.css_safen("src-group" + d.src)})
-            .on("click", function(d) { 
-                that.set_highlights("src", d.src);
-                that.redraw();
-                that.set_src_infobox(d);
-            })
             .attr("x", that.winpad)
             .attr("y", function(d,i){ return that.get_src_line_y(i) })
             .attr("transform", function (d,i){ return "translate("+ (that.winpad) +", "+that.get_src_line_y(i)+")"});
@@ -622,8 +656,13 @@ var rend = function(spec){
         src_labels.enter()
             .append("text")
             .attr("class", "src-line-label")
-            .attr("text-anchor", "right");
-;
+            .attr("text-anchor", "right")
+            .on("click", function(d) { 
+                that.set_highlights("src", d.src);
+                that.redraw();
+                that.set_src_infobox(d);
+            });
+
         src_labels.exit().remove();
 
         src_labels.attr("x", that.can_w)
