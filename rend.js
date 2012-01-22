@@ -115,8 +115,7 @@ var rend = function(spec){
         message += "<li>Left &rarr; right: time.</li>";
         message += "<li>Double click or drag the yellow bars to zoom in.</li>"
         message += "<p><em>Click outside this message to continue</em></p>"        
-
-        that.infobox.set(message, 50, 100);
+        that.infobox.set(message, that.src_line_left_pad + 20, 100);
     }
 
     that.set_highlights = function(type, value){
@@ -348,6 +347,7 @@ var rend = function(spec){
            .attr("id", "sweep" + sweep_type)
            .style("stroke", "gold")
            .style("stroke-width", 3)
+           .style("opacity", 0.8)
            .attr("y1", that.conn_area_y - 10)
            .attr("y2", that.canh)
            .attr("x1", function(d){ return d })
