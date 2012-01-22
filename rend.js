@@ -21,6 +21,7 @@ var rend = function(spec){
     that.infobox = infobox();
     that.max_conn_stroke = 5;
     that.inactive_color = "#999999";
+    that.zoom_ratio = 0.3;
     that.zoom_levels = [];
 
     that.s = null;
@@ -54,10 +55,6 @@ var rend = function(spec){
            else{
               
            }
-        })
-        .on("activate", function(d, i){
-            console.log(d);
-            console.log(d3.event); 
         });
 
         that.intro_infobox();
@@ -203,6 +200,22 @@ var rend = function(spec){
         }
     }
 
+    that.double_click_zoom = function(evt){
+        var start_time = that.feeder.get_sweep_start_time();
+        var end_time = that.feeder.get_sweep_end_time();
+        var click_time = time_scale.invert(evt.x);
+        var time_span = end_time - start_time;
+
+        var time_window = time_span * that.zoom_ratio;
+
+        that.stash_zoom_time();
+        that.feeder.set_sweep_start_time(click_time - time_window / 2);
+        that.feeder.set_sweep_end_time(click_time + time_window /2);
+
+        that.reset_scale_and_sweeps();
+        that.redraw();
+    }
+
     that.paint_data_hud = function(t){
         var data_hud = that.get_can().selectAll("#data-hud")
             .data([t])
@@ -314,16 +327,18 @@ var rend = function(spec){
                    that.paint_time_hud();
                })
            )
-           //.transition()
-           //    .ease("linear")
-           //    .duration(that.feeder.get_runtime())
-           //    .attr("x1", time_scale(that.feeder.get_sweep_end_time()))
-           //    .attr("x2", time_scale(that.feeder.get_sweep_end_time()));
 
            return sweep;
     }
 
     that.reset_scale_and_sweeps = function(){
+        that.canw = $(window).width() - (that.winpad * 2);
+        that.canh = $(window).height() - (that.winpad * 2);
+        
+        /*that.s = d3.select("#viz")
+        .attr("width", that.canw)
+        .attr("height", that.canh);*/
+
         that.feeder.update_data();
         that.set_scales();
         that.reset_start_sweep();
@@ -443,7 +458,8 @@ var rend = function(spec){
 
     that.paint_conn_circs = function(){
         var conn_lines = that.get_can().selectAll(".conncirc")
-            .data(that.feeder.get_conns());
+            .data(that.feeder.get_conns(), 
+                  function(d) { return d.src + d.time + d.dst + d.dport });
 
         var conn_lines_enter = conn_lines
             .enter()
@@ -494,12 +510,12 @@ var rend = function(spec){
                 })
                 .attr("r",  function(d) {
                   return d3.min([d.num_conns, that.get_src_line_height() / 2])
-                });
+                })
 
 
-            conn_lines.transition()
+            /*conn_lines.transition()
                 .delay(0)
-                .duration(0)
+                .duration(0)*/
                 .style("opacity", function(d, i){
                     var pass = true;
 
@@ -531,10 +547,10 @@ var rend = function(spec){
                     }
                 })
    
-                .attr("y1", function(d, i) {
+                /*.attr("y1", function(d, i) {
                    return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
                 })
-                .attr("x1", function(d) {return time_scale(d.time) })
+                .attr("x1", function(d) {return time_scale(d.time) })*/
 
 
              conn_lines.exit().remove();

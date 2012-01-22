@@ -50,10 +50,15 @@
         { src: "192.168.0.4", dst: "172.168.1.1", dport: "22", valid: true, time: 1325666350 , num_conns: 1},
     ];
 
+    //ondblclick="rend.double_click_zoom(this)"
     var feeder = feeder({data:traffic});
     feeder.init();
     var rend = rend({feeder:feeder});
-    
+
+    document.getElementById("viz").addEventListener("dblclick", rend.double_click_zoom, false);    
+
+    window.onresize = function(){ rend.reset_scale_and_sweeps(); }
+
     rend.init();
 
 </script>
