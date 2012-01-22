@@ -19,6 +19,7 @@ var feeder = function(spec){
     that.sweep_start_time;
     that.sweep_end_time;
     that.running = true;
+    that.max_bundle_size = 0;
     
     that.init = function(){
         // TODO: put all collection routines in single loop
@@ -95,6 +96,10 @@ var feeder = function(spec){
         return that.time_end;
     }
 
+    that.get_max_bundle_size = function(){
+        return that.max_bundle_size;
+    }
+
     that.update_data = function(){
         that.conns = [];
         that.conns = that.find_events_between(that.sweep_start_time, that.sweep_end_time);
@@ -104,6 +109,7 @@ var feeder = function(spec){
     that.find_events_between = function(start_time, end_time){
             var found_events = [];
             that.srcs = [];
+            that.max_bundle_size = 0;
 
             // TODO: optimise!
             for (var i = 0; i < data.length; i++){
@@ -127,6 +133,10 @@ var feeder = function(spec){
                     }
                     else{
                         that.srcs[pos]["invalid_conns"] += data[i].num_conns;
+                    }
+
+                    if (data[i].num_conns > that.max_bundle_size){
+                        that.max_bundle_size = data[i].num_conns;
                     }
                 }
             }

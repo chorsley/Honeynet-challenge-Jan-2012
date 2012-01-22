@@ -16,6 +16,7 @@ var rend = function(spec){
     that.status_msg;
     that.conn_area_y = 100;
     that.conn_line_pad = 2;
+    that.conn_circ_min_rad = 3;
     that.inactive_opactity = 0.3;
     that.sweep_transition_time = 1000;
     that.infobox = infobox();
@@ -26,13 +27,10 @@ var rend = function(spec){
 
     that.s = null;
 
-    /*var src_y_scale = d3.scale.linear()
-                      .domain([0, that.feeder.get_data().map(function(e){ return e.src}).unique().length])
-                      .range([that.conn_area_y, that.canh]);*/
-
     var src_y_scale;
     var time_scale;
     var src_trust;
+    var conn_circ_size_scale;
     var port_color_scale = d3.scale.category10();
     var host_color_scale = d3.scale.category20b();
 
@@ -70,8 +68,9 @@ var rend = function(spec){
     that.redraw = function(){
         src_y_scale.domain([0, that.feeder.get_srcs().length]);
         that.paint_srcs();
+        that.paint_ports();
         that.paint_time_hud();
-        that.paint_data_hud("");
+        that.paint_zoom_hud();
         that.paint_conn_circs();
         that.feeder.update_data();
     }
@@ -85,12 +84,15 @@ var rend = function(spec){
                          .domain([that.feeder.get_sweep_start_time(), that.feeder.get_sweep_end_time()])
                          .range([that.winpad, that.canw]);
         src_trust = d3.scale.quantile()
-                         .domain([0, 0.001, 0.5, 1])
+                         .domain([0, 0.001, 0.6, 1])
                          .range([
                              {color: "#666666", desc:"No valid connections"},
                              {color: "red", desc: "Suspect: low % valid connections"},
                              {color: "darkorange", desc: "Suspicious: significant % of invalid connections" },
                              {color: "green", desc: "Mostly valid connections"}]);
+        conn_circ_size_scale = d3.scale.linear()
+                                  .domain([1, that.feeder.get_max_bundle_size()])
+                                  .range([that.conn_circ_min_rad, that.get_src_line_height() * 0.8])
 
     }
 
@@ -100,14 +102,16 @@ var rend = function(spec){
         message += "<li>Top: servers and ports receiving data.</li>";
         message += "<li>Left: connecting IPs.</li>";
         message += "<li>Left &rarr; right: time.</li>";
-        message += "<li>Drag the yellow bars to zoom in.</li>"
+        message += "<li>Double click or drag the yellow bars to zoom in.</li>"
 
         that.infobox.set(message, 50, 100);
     }
 
     that.set_highlights = function(type, value){
-        for (var k in that.highlights){
-            delete that.highlights[k];
+        if (!type){
+            for (var k in that.highlights){
+                delete that.highlights[k];
+            }
         }
 
         if (type && value){
@@ -133,25 +137,28 @@ var rend = function(spec){
     }
   
     that.paint_time_hud = function(){
-        var time_elem = that.get_can().selectAll(".time");
-            
-            time_elem.data([1])
+
+        that.paint_time("starttime", that.feeder.get_sweep_start_time(), that.winpad, "left");
+        that.paint_time("endtime", that.feeder.get_sweep_end_time(), that.canw - that.winpad, "end");
+    }
+
+    that.paint_time = function(tname, time, xpos, anchor){
+        var start_time_elem = that.get_can().selectAll("." + tname);
+            start_time_elem.data([1])
             .enter()
             .append("svg:text")
-            .attr("class", "hud time")
-            .attr("x", that.winpad)
-            .attr("y", that.winpad)
+            .attr("class", "hud " + tname)
+            .attr("x", xpos)
+            .attr("y", that.winpad * 2 + that.dst_box_height * 2)
             .attr("dy", "0.3em")
-            .attr("text-anchor", "left");
+            .attr("text-anchor", anchor);
 
-        time_elem.transition()
+        start_time_elem.transition()
             .text(function(d){ 
-                var start_date = new Date(); 
-                start_date.setTime(that.feeder.get_sweep_start_time() * 1000); 
-                var end_date = new Date(); 
-                end_date.setTime(that.feeder.get_sweep_end_time() * 1000); 
-                return (that.format_date(start_date, 0) + " - " + that.get_minimal_date_diff(start_date, end_date));
-            });
+                var date = new Date(); 
+                date.setTime(time * 1000);
+                return (that.format_date(date, 0))
+            });      
     }
 
     that.get_minimal_date_diff = function(date1, date2){
@@ -216,16 +223,35 @@ var rend = function(spec){
         that.redraw();
     }
 
-    that.paint_data_hud = function(t){
-        var data_hud = that.get_can().selectAll("#data-hud")
-            .data([t])
+    that.paint_zoom_hud = function(){
+        var data_hud = that.get_can().selectAll("#zoom-hud")
+            .data([1]);
+        var color;
+
+        data_hud
             .enter()
             .append("svg:text")
-            .attr("id", "data-hud")
-            .attr("class", "hud")
-            .attr("x", that.winpad)
-            .attr("y", that.canh)
-            .text(t);
+            .attr("id", "zoom-hud")
+            .attr("class", "hud zoomer")
+            .attr("x", (that.canw - that.winpad) / 2)
+            .attr("y", that.winpad * 2 + that.dst_box_height * 2)
+            .attr("dy", "0.3em")
+            .style("fill", that.inactive_color)
+            .text("Zoom out")
+            .style("text-anchor", "middle")
+            .on("click", function(){rend.rollback_zoom_time()});
+        
+        if (that.zoom_levels.length > 0){
+            color = "blue";
+        }
+        else{
+            color = that.inactive_color;
+        }
+
+        data_hud
+            .transition()
+                .duration(that.sweep_transition_time)
+                .style("fill", color);
     }
 
     that.paint_end_sweep = function(){
@@ -466,7 +492,10 @@ var rend = function(spec){
                 .append("svg:circle")
                 .attr("class", "conncirc")
                 .on("click", function(d, i){
+                    that.set_highlights("dport", d.dport);
+                    that.set_highlights("src", d.src);
                     that.set_conn_infobox(d);
+                    that.redraw();
                 })
                 .style("stroke", function(d,i){
                     if (!d.valid){
@@ -509,7 +538,8 @@ var rend = function(spec){
                   return time_scale(d.time)
                 })
                 .attr("r",  function(d) {
-                  return d3.min([d.num_conns, that.get_src_line_height() / 2])
+                  return conn_circ_size_scale(d.num_conns);
+                  //return d3.min([d.num_conns, that.get_src_line_height() / 2])
                 })
 
 
@@ -822,7 +852,7 @@ var rend = function(spec){
                 that.redraw();
             })
             .attr("x", function(d, i) { return 0 })
-            .attr("y", that.winpad)
+            .attr("y", 0)
             .attr("class", "dst-box")
             .attr("id", function(d) { return that.css_safen("dst" + d.dst) } )
             .style("stroke", "grey")
@@ -845,6 +875,7 @@ var rend = function(spec){
             .attr("fill", "lightgray")
             .attr("class", "dst-box-label")
             .attr("text-anchor", "middle")
+            .attr("vertical-align", "")
             .text(function(d,i) { return d.dst });
     }
 
@@ -863,20 +894,18 @@ var rend = function(spec){
             .attr("x", function (d, i){ 
                 return (that.get_host_box_width() / d.num_dst_ports) * i  
             })
-            .attr("y", that.dst_box_height + that.winpad )
+            .attr("y", that.dst_box_height )
             .attr("width", function (d, i){ return (that.get_host_box_width() / d.num_dst_ports) })
             .attr("height", that.dst_box_height)
             .attr("title", "Test")
             .attr("class", "dst-port-box")
             .attr("id", function (d) { return that.css_safen("port" + d.dst + "_" + d.dport) })
             .style("fill", function(d,i){
-                if (that.cached_colors.hasOwnProperty(d.dport)){
-                    return that.cached_colors[d.dport];
+                if (!that.cached_colors.hasOwnProperty(d.dport)){
+                   that.cached_colors[d.dport] = port_color_scale(Object.size(  that.cached_colors));
                 }
-                else{
-                    that.cached_colors[d.dport] = port_color_scale(Object.size(that.cached_colors));
-                    return that.cached_colors[d.dport];
-                }
+
+                return that.set_port_label_anim_color(d, i);
             })
             .attr("stroke", "grey")
             .on("click", function(d) { 
@@ -885,12 +914,23 @@ var rend = function(spec){
             })
             .text(function(d) { return d.dport });
 
+        port_rects
+            .transition()
+            .duration(that.sweep_transition_time)
+              .style("fill", function(d,i){
+                  if (!that.cached_colors.hasOwnProperty(d.dport)){
+                     that.cached_colors[d.dport] = port_color_scale(Object.size(that.cached_colors));
+                  }
+
+                  return that.set_port_label_anim_color(d, i);
+              })
+
         port_rects.enter()
             .append("text")
             .attr("x", function (d, i){ 
                 return (that.get_host_box_width() / d.num_dst_ports) * i +  that.get_host_box_width() / d.num_dst_ports * 0.5
             })
-            .attr("y", that.dst_box_height * 1.5 + that.winpad )
+            .attr("y", that.dst_box_height * 1.5 )
             .attr("dy", "0.3em")
             .attr("dx", "0em")
             .on("click", function(d) { 
@@ -903,12 +943,28 @@ var rend = function(spec){
             .text(function(d,i) { return d.dport });
     }
 
+    that.set_port_label_anim_color = function(d, i){
+      if (that.highlights.hasOwnProperty('dport')){
+          if (d.dport == that.highlights['dport']){
+             return that.cached_colors[d.dport];
+          }
+          else{
+            return that.inactive_color;
+          }
+      }
+      else{
+            return that.cached_colors[d.dport];
+      }
+    }
+
     that.css_safen = function(s){
         return s.replace(/\./g, "_");
     }
 
     return that;
 };
+
+
 
 Array.prototype.unique = function() {
     var o = {}, i, l = this.length, r = [];
