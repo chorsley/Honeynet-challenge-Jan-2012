@@ -16,6 +16,7 @@ var rend = function(spec){
     that.status_msg;
     that.conn_area_y = 100;
     that.conn_line_pad = 2;
+    that.src_line_left_pad = 75;
     that.conn_circ_min_rad = 3;
     that.inactive_opactity = 0.3;
     that.sweep_transition_time = 1000;
@@ -33,9 +34,9 @@ var rend = function(spec){
     var time_scale;
     var src_trust;
     var conn_circ_size_scale;
-    var port_color_scale = d3.scale.category20();
+    var port_color_scale = d3.scale.category10();
     var host_color_scale = d3.scale.category20b();
-    console.log(port_color_scale)
+
     that.init = function(){
         that.s = d3.select("#viz")
         .append("svg:svg")
@@ -92,7 +93,7 @@ var rend = function(spec){
 
         time_scale = d3.scale.linear()
                          .domain([that.feeder.get_sweep_start_time(), that.feeder.get_sweep_end_time()])
-                         .range([that.winpad + 75, that.canw]);
+                         .range([that.winpad + that.src_line_left_pad, that.canw]);
         src_trust = d3.scale.quantile()
                          .domain([0, 0.001, 0.6, 1])
                          .range([
@@ -113,6 +114,7 @@ var rend = function(spec){
         message += "<li>Left: connecting IPs.</li>";
         message += "<li>Left &rarr; right: time.</li>";
         message += "<li>Double click or drag the yellow bars to zoom in.</li>"
+        message += "<p><em>Click outside this message to continue</em></p>"        
 
         that.infobox.set(message, 50, 100);
     }
@@ -171,21 +173,21 @@ var rend = function(spec){
     }
 
     that.get_minimal_date_diff = function(date1, date2){
-      // date 1 should be earlier than date 2
-      var date_arr_1 = [date1.getFullYear(), date1.getMonth(), date1.getDate(), date1.getHours(), date1.getMinutes(), date1.getSeconds()];
-      var date_arr_2 = [date2.getFullYear(), date2.getMonth(), date2.getDate(), date2.getHours(), date2.getMinutes(), date2.getSeconds()];
+        // date 1 should be earlier than date 2
+        var date_arr_1 = [date1.getFullYear(), date1.getMonth(), date1.getDate(), date1.getHours(), date1.getMinutes(), date1.getSeconds()];
+        var date_arr_2 = [date2.getFullYear(), date2.getMonth(), date2.getDate(), date2.getHours(), date2.getMinutes(), date2.getSeconds()];
 
-      var match_pos = 0;
+        var match_pos = 0;
 
-      for (var i = 0; i < date_arr_1.length; i++){
-          if (date_arr_1[i] == date_arr_2[i]){
-              match_pos = i;
-          }
-          else{
-              break;
-          }
-      }
-      return this.format_date(date2, match_pos + 1);
+        for (var i = 0; i < date_arr_1.length; i++){
+            if (date_arr_1[i] == date_arr_2[i]){
+                match_pos = i;
+            }
+            else{
+                break;
+            }
+        }
+        return this.format_date(date2, match_pos + 1);
     }
 
     that.format_date = function(date, use_from){
@@ -207,12 +209,12 @@ var rend = function(spec){
 
     that.rollback_zoom_time = function(){
         if (that.zoom_levels.length > 0){
-          times = that.zoom_levels.pop();
+            times = that.zoom_levels.pop();
 
-          that.feeder.set_sweep_start_time(times[0]);
-          that.feeder.set_sweep_end_time(times[1]);
+            that.feeder.set_sweep_start_time(times[0]);
+            that.feeder.set_sweep_end_time(times[1]);
 
-          that.reset_scale_and_sweeps();
+            that.reset_scale_and_sweeps();
         }
     }
 
@@ -415,18 +417,13 @@ var rend = function(spec){
                 });
 
             conn_lines
-              //.attr("y1", function(d, i) {
-              //    return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
-              //})
               .attr("y2", function(d, i) { 
                   var attrs = that.get_port_box_attr(d.dst, d.dport);
                   return attrs.y + that.dst_box_height;
-                  //return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
               })
               .attr("x2", function(d) {
                   var attrs = that.get_port_box_attr(d.dst, d.dport);
                   return (attrs.x + attrs.width / 2);
-                  //return time_scale(d.time) 
               });
 
             conn_lines
@@ -481,7 +478,6 @@ var rend = function(spec){
                    })
                 .attr("y1", function(d, i) {
                    return src_y_scale(that.feeder.get_srcs().indexOfObj("src", d.src));
-                   //return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
                 })
                 .attr("x1", function(d) {return time_scale(d.time) })
 
@@ -494,7 +490,7 @@ var rend = function(spec){
     that.paint_conn_circs = function(){
         var conn_lines = that.get_can().selectAll(".conncirc")
             .data(that.feeder.get_conns(), 
-                  function(d) { return d.src + d.time + d.dst + d.dport });
+                function(d) { return d.src + d.time + d.dst + d.dport });
 
         var conn_lines_enter = conn_lines
             .enter()
@@ -544,17 +540,11 @@ var rend = function(spec){
                    return src_y_scale(that.feeder.get_srcs().indexOfObj("src", d.src));
                 })
                 .attr("cx", function(d) {
-                  return time_scale(d.time)
+                  return time_scale(d.time);
                 })
                 .attr("r",  function(d) {
                   return conn_circ_size_scale(d.num_conns);
-                  //return d3.min([d.num_conns, that.get_src_line_height() / 2])
                 })
-
-
-            /*conn_lines.transition()
-                .delay(0)
-                .duration(0)*/
                 .style("opacity", function(d, i){
                     var pass = true;
 
@@ -585,40 +575,34 @@ var rend = function(spec){
                       return "none";
                     }
                 })
-   
-                /*.attr("y1", function(d, i) {
-                   return (that.get_group_attr(that.css_safen("#src-group"+d.src)).y);
-                })
-                .attr("x1", function(d) {return time_scale(d.time) })*/
-
 
              conn_lines.exit().remove();
 
     }
 
     that.set_circ_anim_color = function(d, i){
-      var pass = true;
+        var pass = true;
 
-      for (var k in that.highlights){
-        if (d.hasOwnProperty(k)){
-           if (that.highlights[k] != d[k]){
-               pass = false;
-               break;
-           }
+        for (var k in that.highlights){
+            if (d.hasOwnProperty(k)){
+               if (that.highlights[k] != d[k]){
+                  pass = false;
+                  break;
+               }
+            }
         }
-      }
 
-      if (pass){
-        if (that.cached_colors.hasOwnProperty(d.dport)){
-            return that.cached_colors[d.dport];
+        if (pass){
+            if (that.cached_colors.hasOwnProperty(d.dport)){
+                return that.cached_colors[d.dport];
+            }
+            else{
+                return port_color_scale(i);
+            }
         }
         else{
-            return port_color_scale(i);
+            return that.inactive_color;
         }
-      }
-      else{
-        return that.inactive_color;
-      }
     }
 
     that.set_conn_infobox = function(d){
@@ -670,18 +654,6 @@ var rend = function(spec){
         }
     }
 
-    that.get_line_attr = function(elem){
-        var elemref = d3.select(elem);
-        if (elemref.empty()){
-            console.log("Warn: " + elem + " is empty"); 
-            return;
-        }
-        else{
-            var bbox = elemref.node().getBBox();
-            return ({x:bbox.x, y:bbox.y, width:bbox.width, height:bbox.height});
-        }
-    }
-
     that.paint_srcs = function(){
 
         var nest = d3.nest()
@@ -728,7 +700,7 @@ var rend = function(spec){
 
         src_labels.attr("x", that.can_w)
             .attr("y", 0)
-            .attr("dy", "1em")
+            .attr("dy", "0.8em")
             .attr("dx", "0em")
             .style("fill", function(d, i){
                 //return src_trust(d.valid_conns / d.num_conns).color
@@ -737,7 +709,7 @@ var rend = function(spec){
             .text(function(d) { return d.src })
             .transition()
               .duration(that.sweep_transition_time)
-              .style("font-size", function(d){ return (that.get_src_line_height() * 0.8) + "px"});
+              .style("font-size", function(d){ return (that.get_src_line_height() * 0.7) + "px"});
 
         
         var srclines_base = src_group
@@ -836,10 +808,6 @@ var rend = function(spec){
         that.infobox.set(message, d3.event.x, d3.event.y);
     }
 
-    //that.set_up_conns = function(){
-    //    setTimeout(that.paint_conn_circs, that.sweep_transition_time + 100);
-    //}
-
     that.paint_dsts = function(){
         var host_width = that.get_host_box_width();
         var sets = that.feeder.get_dst_host_ports();
@@ -932,13 +900,13 @@ var rend = function(spec){
         port_rects
             .transition()
             .duration(that.sweep_transition_time)
-              .style("fill", function(d,i){
-                  if (!that.cached_colors.hasOwnProperty(d.dport)){
-                     that.cached_colors[d.dport] = port_color_scale(Object.size(that.cached_colors));
-                  }
+                .style("fill", function(d,i){
+                    if (!that.cached_colors.hasOwnProperty(d.dport)){
+                       that.cached_colors[d.dport] = port_color_scale(Object.size(that.cached_colors));
+                    }
 
-                  return that.set_port_label_anim_color(d, i);
-              })
+                    return that.set_port_label_anim_color(d, i);
+                })
 
         port_rects.enter()
             .append("text")
@@ -959,17 +927,17 @@ var rend = function(spec){
     }
 
     that.set_port_label_anim_color = function(d, i){
-      if (that.highlights.hasOwnProperty('dport')){
-          if (d.dport == that.highlights['dport']){
-             return that.cached_colors[d.dport];
-          }
-          else{
-            return that.inactive_color;
-          }
-      }
-      else{
-            return that.cached_colors[d.dport];
-      }
+        if (that.highlights.hasOwnProperty('dport')){
+            if (d.dport == that.highlights['dport']){
+                return that.cached_colors[d.dport];
+            }
+            else{
+                return that.inactive_color;
+            }
+        }
+        else{
+                return that.cached_colors[d.dport];
+        }
     }
 
     that.css_safen = function(s){
