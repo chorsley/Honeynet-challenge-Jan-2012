@@ -24,6 +24,8 @@ var rend = function(spec){
     that.inactive_color = "#999999";
     that.zoom_ratio = 0.3;
     that.zoom_levels = [];
+    that.dblclick_timeout = 200;
+    that.dblclick_timeout_id;
 
     that.s = null;
 
@@ -31,9 +33,9 @@ var rend = function(spec){
     var time_scale;
     var src_trust;
     var conn_circ_size_scale;
-    var port_color_scale = d3.scale.category10();
+    var port_color_scale = d3.scale.category20();
     var host_color_scale = d3.scale.category20b();
-
+    console.log(port_color_scale)
     that.init = function(){
         that.s = d3.select("#viz")
         .append("svg:svg")
@@ -42,17 +44,25 @@ var rend = function(spec){
         .attr("height", that.canh)
         .on("click", function(d, i){
             // clear all highlights if you click canvas
-           if (d3.event.target.tagName == "svg"){
-                that.set_highlights();
-                that.redraw();
-           }
-           if (d3.event.target.className.baseVal != "src-line-label"
+            // d3.event.detail: 1 single click, 2 dbl click
+            // This avoids double clicks removing the highlights.
+            if (d3.event.target.tagName == "svg"){
+                if (d3.event.detail == 1){
+                    that.dblclick_timeout_id = setTimeout(function(){
+                      that.set_highlights(); 
+                      that.redraw();
+                    },
+                    that.dblclick_timeout);
+                }
+                else{
+                    clearTimeout(that.dblclick_timeout_id);
+                }
+            }
+
+            if (d3.event.target.className.baseVal != "src-line-label"
                && d3.event.target.className.baseVal != "conncirc"){
                 that.infobox.unset();
-           }
-           else{
-              
-           }
+            }
         });
 
         that.intro_infobox();
@@ -67,12 +77,12 @@ var rend = function(spec){
 
     that.redraw = function(){
         src_y_scale.domain([0, that.feeder.get_srcs().length]);
+        that.feeder.update_data();
         that.paint_srcs();
         that.paint_ports();
         that.paint_time_hud();
-        that.paint_zoom_hud();
         that.paint_conn_circs();
-        that.feeder.update_data();
+        that.paint_zoom_hud();
     }
 
     that.set_scales = function(){
@@ -82,14 +92,14 @@ var rend = function(spec){
 
         time_scale = d3.scale.linear()
                          .domain([that.feeder.get_sweep_start_time(), that.feeder.get_sweep_end_time()])
-                         .range([that.winpad, that.canw]);
+                         .range([that.winpad + 75, that.canw]);
         src_trust = d3.scale.quantile()
                          .domain([0, 0.001, 0.6, 1])
                          .range([
-                             {color: "#666666", desc:"No valid connections"},
-                             {color: "red", desc: "Suspect: low % valid connections"},
-                             {color: "darkorange", desc: "Suspicious: significant % of invalid connections" },
-                             {color: "green", desc: "Mostly valid connections"}]);
+                             {color: "#666666", desc:"No accepted connections"},
+                             {color: "red", desc: "Suspect: low % accepted connections"},
+                             {color: "darkorange", desc: "Suspicious: significant % of rejected connections" },
+                             {color: "green", desc: "Mostly accepted connections"}]);
         conn_circ_size_scale = d3.scale.linear()
                                   .domain([1, that.feeder.get_max_bundle_size()])
                                   .range([that.conn_circ_min_rad, that.get_src_line_height() * 0.8])
@@ -117,7 +127,6 @@ var rend = function(spec){
         if (type && value){
             that.highlights[type] = value;
         }
-
     }
 
     that.get_can = function(){
@@ -182,7 +191,7 @@ var rend = function(spec){
     that.format_date = function(date, use_from){
         var out = "";
         var seps = ['/', '/', ' ', ':', ':', ''];
-        var date_arr = [date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), padNum(date.getMinutes(), 2, 0), padNum(date.getSeconds(), 2, 0)];
+        var date_arr = [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), padNum(date.getMinutes(), 2, 0), padNum(date.getSeconds(), 2, 0)];
 
         for (var i = use_from; i < date_arr.length; i++){
             out += date_arr[i] + seps[i];
@@ -619,7 +628,7 @@ var rend = function(spec){
         var end_date = new Date();
         end_date.setTime(d.last_time * 1000);
 
-        var valid_label = d.valid ? "valid" : "invalid";
+        var valid_label = d.valid ? "accepted" : "rejected";
 
         var message = "<div class='infobox_header'>";
         message += "<div style='color:'>" + d.src + " &rarr; ";
@@ -629,6 +638,12 @@ var rend = function(spec){
         message += "<div>" + d.num_conns + " " + valid_label + " connections</div>";
         message += "<div>" + that.format_date(start_date, 0) + " &rarr;</div>";
         message += "<div>" + that.format_date(end_date, 0) + "</div>";
+        if (d.valid && d.hasOwnProperty("user")){
+          message += "<div><strong>Logged in as " + d.user + "</strong></div>";
+        }
+        if (d.hasOwnProperty("httpreq")){
+          message += "<div>First HTTP req:<br/><strong>" + d.httpreq + "</strong></div>";
+        }
         that.infobox.set(message, d3.event.x, d3.event.y);
     }
 
@@ -870,12 +885,12 @@ var rend = function(spec){
             })
             .attr("x", host_width / 2)
             .attr("y", that.dst_box_height / 2)
-            .attr("dy", "1em")
-            .attr("dx", "0.5em")
+            .attr("dy", "0.3em")
+            //.attr("dx", "0.3em")
             .attr("fill", "lightgray")
             .attr("class", "dst-box-label")
             .attr("text-anchor", "middle")
-            .attr("vertical-align", "")
+            .attr("vertical-align", "middle")
             .text(function(d,i) { return d.dst });
     }
 

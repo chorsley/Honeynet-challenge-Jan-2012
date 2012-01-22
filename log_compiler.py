@@ -3,12 +3,14 @@ import anyjson
 import re
 import csv
 import operator
+import os
 
 log_dir = "sanitized_log"
 auth_log = log_dir + "/auth.log"
 web_access_log = log_dir + "/apache2/www-access.log"
 media_access_log = log_dir + "/apache2/www-access.log"
 
+# connections within this many seconds are grouped together
 bundle_window = 60*60
 
 log_data = []
@@ -23,7 +25,7 @@ def parse_auth_log(auth_log):
                     "(\w+  ?\d+ \d+\:\d+\:\d+) ([^\s]+) (\w+)\[(\d+)\]\: (.*)", \
                     line)
             if m:
-                conn["time"] = ssh_log_time_to_epoch(m.group(1), 2010)
+                (conn["time"], conn["origtime"]) = ssh_log_time_to_epoch(m.group(1), 2010)
                 conn["dst"] = m.group(2)
                 conn["pname"] = m.group(3)
                 conn["pid"] = m.group(4)
@@ -40,12 +42,14 @@ def parse_auth_log(auth_log):
                         conn["valid"] = False if conn["result"] == "Failed" else True
                         if (not bundle_if_possible(conn)):
                             yield({'src': conn["src"], \
-                                   'dst': conn["dst"], \
-                                   'dport': conn["dport"], \
-                                   'valid': conn["valid"], \
-                                   'time': conn["time"], \
-                                   'last_time': conn["time"], \
-                                   'num_conns': 1})
+                                       'dst': conn["dst"], \
+                                       'dport': conn["dport"], \
+                                       'valid': conn["valid"], \
+                                       'time': conn["time"], \
+                                       'origtime': conn["origtime"], \
+                                       'last_time': conn["time"], \
+                                       'num_conns': 1,
+                                       'user': conn['user']})
 
 def parse_web_access_log(web_log):
     # 10.0.1.2 - - [19/Apr/2010:08:30:12 -0700] "GET /feed/ HTTP/1.1" 200 16605 "-" "Apple-PubSub/65.12.1" oxOvcAoAAQ4AAEY@W5kAAAAB 4159446
@@ -60,6 +64,7 @@ def parse_web_access_log(web_log):
         conn["dport"] = 80
         conn["valid"] = get_http_code_validity(row[fields['status']])
         conn["src"] = row[fields['src']]
+        conn["req"] = row[fields['req']]
         #conn["valid"] = is_http_code_value
         if (not bundle_if_possible(conn)):
             yield({'src': conn["src"], \
@@ -68,6 +73,7 @@ def parse_web_access_log(web_log):
                    'valid': conn["valid"], \
                    'time': conn["time"], \
                    'last_time': conn["time"], \
+                   'httpreq': conn['req'], \
                    'num_conns': 1})
 
 def bundle_if_possible(conn):
@@ -100,9 +106,10 @@ def apache_log_time_to_epoch(dtime):
 
 def ssh_log_time_to_epoch(dtime, year):
     pattern = "%Y %b %d %H:%M:%S"
+    #print str(year) + " " + dtime
     convdate = time.strptime(str(year) + " " + dtime, pattern)
     etime = int(time.mktime(convdate))
-    return etime
+    return (etime, dtime)
 
 if __name__ == "__main__":
     for res in parse_auth_log(auth_log):
